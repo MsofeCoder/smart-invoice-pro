@@ -1,0 +1,56 @@
+# Deploy the static PWA to GitHub Pages.
+#
+# There is no build step: the app is plain HTML + ES modules + a service worker,
+# so the repository *is* the artefact. The only thing that has to happen is
+# publishing the tree and letting Pages serve it.
+#
+# Two details that matter:
+#   - `.nojekyll` (repo root) opts out of Jekyll, which would otherwise process
+#     every file and drop anything starting with `_` or `.`.
+#   - All paths in the app are RELATIVE (manifest start_url/scope, the service
+#     worker registration, every href), so it works unchanged from the
+#     `/smart-invoice-pro/` sub-path a project Pages site is served from.
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege: read the repo, write the Pages deployment, mint the OIDC token
+# Pages uses to verify the deploy came from this workflow.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race. `cancel-in-progress: false` keeps a queued release
+# from being killed halfway through.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # The whole tree minus .git. node_modules is not committed, so it is
+          # absent here too — checkout only materialises tracked files.
+          path: .
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

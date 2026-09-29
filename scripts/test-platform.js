@@ -399,6 +399,9 @@ const identity = JSON.parse(await evaluate(`(async () => {
     name: manifest && manifest.name,
     short: manifest && manifest.short_name,
     icons: manifest && Array.isArray(manifest.icons) ? manifest.icons.length : 0,
+    startUrl: manifest && manifest.start_url,
+    scope: manifest && manifest.scope,
+    iconSrc: manifest && manifest.icons && manifest.icons[0] && manifest.icons[0].src,
     title: document.title,
     sidebarName: document.querySelector('#sidebarBrandName')?.textContent.trim(),
     sidebarSub: document.querySelector('#sidebarBrandSub')?.textContent.trim(),
@@ -410,6 +413,13 @@ const identity = JSON.parse(await evaluate(`(async () => {
 r.eq('the manifest link is re-pointed at a blob', identity.isBlob, true);
 r.eq('the live manifest carries the configured name', identity.name, identity.configName);
 r.check('the live manifest keeps the icons', identity.icons >= 4, identity.icons);
+// A blob URL is the manifest's own URL, so a relative start_url/scope/icon would
+// resolve against `blob:https://host/uuid` and break the install. Assert they are
+// absolutised — this is what makes the PWA installable from a GitHub Pages
+// sub-path as well as from file:// and localhost.
+r.check('live manifest start_url is absolute (blob-safe)', /^https?:/.test(identity.startUrl || ''), identity.startUrl);
+r.check('live manifest scope is absolute (blob-safe)', /^https?:/.test(identity.scope || ''), identity.scope);
+r.check('live manifest icon src is absolute (blob-safe)', /^https?:/.test(identity.iconSrc || ''), identity.iconSrc);
 r.check('the title carries the app name', identity.title.includes(identity.configName), identity.title);
 r.eq('the sidebar shows the app name', identity.sidebarName, identity.configName);
 r.eq('the sidebar shows the tagline', identity.sidebarSub, identity.configTagline);

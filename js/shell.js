@@ -86,11 +86,27 @@ async function applyPwaIdentity(name, tagline) {
   try {
     const base = await (await fetch('manifest.json', { cache: 'no-cache' })).json();
     const shortName = name.length > 12 ? name.slice(0, 12).trim() : name;
+
+    /* A Blob URL *is* the manifest's own URL, so every relative URL inside it
+       would resolve against `blob:https://host/uuid` — which has no path, so
+       start_url, scope and every icon become unusable and the install silently
+       degrades. Resolve them against the document instead before serialising.
+       (The static manifest.json on disk is unaffected and still uses relative
+       paths, so it works from any sub-path.) */
+    const abs = (u) => (typeof u === 'string' && u ? new URL(u, document.baseURI).href : u);
     const manifest = {
       ...base,
       name,
       short_name: shortName,
       description: tagline ? `${name} — ${tagline}` : base.description,
+      start_url: abs(base.start_url),
+      scope: abs(base.scope),
+      icons: (base.icons || []).map((i) => ({ ...i, src: abs(i.src) })),
+      shortcuts: (base.shortcuts || []).map((s) => ({
+        ...s,
+        url: abs(s.url),
+        icons: (s.icons || []).map((i) => ({ ...i, src: abs(i.src) })),
+      })),
     };
     const next = URL.createObjectURL(
       new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/manifest+json' }),
