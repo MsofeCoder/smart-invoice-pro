@@ -43,6 +43,11 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          # Turn Pages on if it is not already. Without this the first run fails
+          # with a bare "Get Pages site failed — Not Found" that says nothing
+          # about the real cause.
+          enablement: true
 
       - name: Upload the site
         uses: actions/upload-pages-artifact@v3
