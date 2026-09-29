@@ -316,5 +316,205 @@ console.log('\n== package.json ==');
   assert('serve uses the zero-dependency server', /node scripts\/serve\.js/.test(pkg.scripts.serve || ''), pkg.scripts.serve);
 }
 
+/* ---------- 7. Dark theme token contract ----------
+   The dark theme is built by ALIASING the legacy tokens (--bg, --surface, --ink,
+   --border, …) onto a new enterprise slate scale, so ~1200 lines of component
+   CSS adopt the palette without a single component rule changing. That trick
+   only holds while both blocks stay complete and in sync — and every way it can
+   break is silent: a dropped alias just keeps the light value, a typo'd var()
+   resolves to unset, and an unscoped consumer leaks dark values into light mode.
+   None of those raise an error, so assert the contract statically. */
+console.log('\n== Dark theme token contract ==');
+{
+  /* Declaration names, not values: a token is free to be re-pointed (that is the
+     whole point of the layer) but a name must never go missing. */
+  const declNames = (decls) => new Set([...decls.matchAll(/(--[a-zA-Z0-9_-]+)\s*:/g)].map((m) => m[1]));
+  const valueOf = (decls, name) => {
+    const m = decls.match(new RegExp(`${name}(?![\\w-])\\s*:\\s*([^;]+);`));
+    return m ? m[1].trim() : null;
+  };
+
+  const rootRule = baseRules.find((r) => r.selectors.includes(':root'));
+  const darkRule = baseRules.find((r) => r.selectors.includes('[data-theme="dark"]'));
+  assert(':root token block found', !!rootRule);
+  assert('[data-theme="dark"] token block found', !!darkRule);
+
+  const rootDecls = rootRule ? rootRule.decls : '';
+  const darkDecls = darkRule ? darkRule.decls : '';
+  const rootTokens = declNames(rootDecls);
+  const darkTokens = declNames(darkDecls);
+
+  // 7a. The enterprise scale must be declared in BOTH blocks. The light values
+  //     reproduce the legacy tokens exactly, so declaring them changes nothing.
+  const SCALE = [
+    '--bg-canvas', '--bg-surface', '--bg-elevated', '--bg-hover',
+    '--border-subtle', '--border-medium', '--border-focus',
+    '--text-primary', '--text-secondary', '--text-tertiary',
+    '--accent-primary', '--accent-glow',
+    '--badge-paid-bg', '--badge-paid-text', '--badge-paid-border',
+    '--badge-unpaid-bg', '--badge-unpaid-text', '--badge-unpaid-border',
+    '--badge-partial-bg', '--badge-partial-text', '--badge-partial-border',
+    '--badge-overdue-bg', '--badge-overdue-text', '--badge-overdue-border',
+  ];
+  const missingScale = [];
+  for (const t of SCALE) {
+    if (!rootTokens.has(t)) missingScale.push(`${t}@root`);
+    if (!darkTokens.has(t)) missingScale.push(`${t}@dark`);
+  }
+  assert(`all ${SCALE.length} enterprise tokens declared in both :root and dark`,
+    missingScale.length === 0, missingScale.join(', '));
+
+  // 7b. The legacy aliases are the load-bearing part: every component rule above
+  //     still reads these names, so all of them must be re-pointed in dark.
+  const LEGACY = ['--bg', '--surface', '--surface-2', '--border', '--border-strong', '--ink', '--ink-soft', '--ink-faint'];
+  const missingAlias = LEGACY.filter((t) => !darkTokens.has(t));
+  assert(`all ${LEGACY.length} legacy tokens re-declared in the dark block`,
+    missingAlias.length === 0, missingAlias.join(', '));
+
+  const aliasRe = (t) => new RegExp(`(?:^|;)\\s*${t}(?![\\w-])\\s*:\\s*var\\(`);
+  const notAliased = LEGACY.filter((t) => !aliasRe(t).test(darkDecls));
+  assert('every legacy dark token aliases the scale (var(--…)), never a literal',
+    notAliased.length === 0, notAliased.join(', '));
+
+  // 7c. …and the light block must NOT alias, or light mode would depend on the
+  //     dark scale and the pinned baseline capture would prove nothing.
+  const lightAliased = LEGACY.filter((t) => aliasRe(t).test(rootDecls));
+  assert('light :root keeps literal legacy values (no aliasing)',
+    lightAliased.length === 0, lightAliased.join(', '));
+
+  // 7d. The safety claim behind the whole refactor: in light mode the new scale
+  //     resolves to the SAME values as the legacy tokens it shadows. If these
+  //     ever drift, light mode has silently changed appearance.
+  const MIRROR = [
+    ['--bg-canvas', '--bg'], ['--bg-surface', '--surface'], ['--bg-elevated', '--surface'],
+    ['--bg-hover', '--surface-2'],
+    ['--border-subtle', '--border'], ['--border-medium', '--border-strong'],
+    ['--text-primary', '--ink'], ['--text-secondary', '--ink-soft'], ['--text-tertiary', '--ink-faint'],
+  ];
+  const drifted = [];
+  for (const [scaleTok, legacyTok] of MIRROR) {
+    const a = valueOf(rootDecls, scaleTok);
+    const b = valueOf(rootDecls, legacyTok);
+    if (a === null || a !== b) drifted.push(`${scaleTok}=${a} vs ${legacyTok}=${b}`);
+  }
+  assert(`light :root scale mirrors the ${MIRROR.length} legacy token values exactly`,
+    drifted.length === 0, drifted.join(' | '));
+
+  // 7e. Every var() the dark block references must resolve to a token some rule
+  //     declares. A typo produces an invalid-at-computed-value-time declaration
+  //     that silently falls back to unset — no console error, no visible clue.
+  const declaredAnywhere = declNames(cssBase);
+  const referenced = new Set([...darkDecls.matchAll(/var\(\s*(--[a-zA-Z0-9_-]+)/g)].map((m) => m[1]));
+  const unresolved = [...referenced].filter((t) => !declaredAnywhere.has(t));
+  assert(`every var() in the dark block resolves to a declared token (${referenced.size} referenced)`,
+    unresolved.length === 0, unresolved.join(', '));
+
+  // 7f. The enterprise tokens may only be CONSUMED under [data-theme="dark"].
+  //     An unscoped consumer would leak slate values into light mode, which is
+  //     the one thing this refactor promises not to do.
+  const leaky = [];
+  for (const rule of baseRules) {
+    for (const sel of rule.selectors) {
+      if (/^\[data-theme="dark"\]/.test(sel)) continue;
+      if (SCALE.some((t) => new RegExp(`var\\(\\s*${t}(?![\\w-])`).test(rule.decls))) leaky.push(sel);
+    }
+  }
+  assert('enterprise tokens are consumed only under [data-theme="dark"]',
+    leaky.length === 0, leaky.join(' | '));
+
+  /* All rules matching `[data-theme="dark"] <sel>`. A component may legitimately
+     carry several (an earlier interaction-polish rule and a later section-25
+     one), so match on any of them rather than the first. */
+  const darkRules = (sel) => baseRules.filter((r) => r.selectors.includes(`[data-theme="dark"] ${sel}`));
+
+  // 7g. Section 25 itself: a component that needed a dark-specific material must
+  //     actually carry one, or it quietly reverts to its light-mode treatment.
+  //     (The topbar's blur is inherited from its base rule, so the dark rule only
+  //     needs to pin a fill translucent enough for that blur to be visible.)
+  const REQUIRED = {
+    '.topbar': /background:\s*rgba\(17, 23, 38, 0\.75\)/,
+    '.sidebar': /backdrop-filter:\s*blur\(12px\)/,
+    '.bottom-nav': /backdrop-filter:\s*blur\(12px\)/,
+    '.card': /border-radius:\s*var\(--radius\)/,
+    '.table-wrap': /border-radius:\s*var\(--radius\)/,
+    '.table tbody tr:hover': /background:\s*var\(--bg-hover\)/,
+    '.btn-primary': /inset 0 1px 0 0 rgba\(255, 255, 255, 0\.2\)/,
+    '.input': /border-color:\s*var\(--border-medium\)/,
+    '.modal': /background:\s*var\(--bg-elevated\)/,
+    '.toast': /background:\s*var\(--bg-elevated\)/,
+    '.dropdown-menu': /background:\s*var\(--bg-elevated\)/,
+    '.invoice-doc': /background:\s*var\(--bg-elevated\)/,
+    '.skeleton': /background:\s*var\(--bg-hover\)/,
+    '.progress': /background:\s*var\(--bg-hover\)/,
+    '.chip': /background:\s*var\(--bg-elevated\)/,
+    '.tip::after': /background:\s*var\(--bg-elevated\)/,
+  };
+  const missingDark = [];
+  for (const [sel, re] of Object.entries(REQUIRED)) {
+    const rules = darkRules(sel);
+    if (!rules.length) { missingDark.push(`${sel} (no rule)`); continue; }
+    if (!rules.some((r) => re.test(r.decls))) missingDark.push(`${sel} (rule present, declaration missing)`);
+  }
+  assert(`all ${Object.keys(REQUIRED).length} dark component treatments present`,
+    missingDark.length === 0, missingDark.join(', '));
+
+  // 7h. Status pills must use the translucent tokens, not a solid fill.
+  const PILLS = {
+    '.badge-green': '--badge-paid-bg',
+    '.badge-orange': '--badge-unpaid-bg',
+    '.badge-gold': '--badge-partial-bg',
+    '.badge-red': '--badge-overdue-bg',
+    '.badge-blue': '--badge-partial-bg',
+    '.badge-gray': '--bg-hover',
+  };
+  const badPills = [];
+  for (const [sel, token] of Object.entries(PILLS)) {
+    const rules = darkRules(sel);
+    if (!rules.length) { badPills.push(`${sel} (no rule)`); continue; }
+    if (!rules.some((r) => new RegExp(`background:\\s*var\\(${token}\\)`).test(r.decls))) badPills.push(`${sel} (expected ${token})`);
+  }
+  assert(`all ${Object.keys(PILLS).length} status pills use the translucent dark tokens`,
+    badPills.length === 0, badPills.join(', '));
+
+  // 7i. Those pill backgrounds must themselves be translucent — the alpha is
+  //     what separates them from the solid pale fills the light palette uses.
+  const pillBgTokens = SCALE.filter((t) => /^--badge-.*-bg$/.test(t));
+  const opaque = pillBgTokens.filter((t) => !/rgba?\(/.test(valueOf(darkDecls, t) || ''));
+  assert(`all ${pillBgTokens.length} dark badge backgrounds are translucent`,
+    opaque.length === 0, opaque.join(', '));
+
+  // 7j. The dark aliases must point at the RAISED surface for --surface-2, not
+  //     the hover one: in light mode a grey panel is recessed, but on a near-black
+  //     canvas the same treatment is invisible, so it has to step up instead.
+  assert('dark --surface-2 aliases the elevated surface, not the hover one',
+    valueOf(darkDecls, '--surface-2') === 'var(--bg-elevated)',
+    valueOf(darkDecls, '--surface-2') || '(missing)');
+
+  // 7k. Printing is paper. Without a reset in the print block, a dark-mode
+  //     session prints near-white text (--ink → #F8FAFC) on a slate block — an
+  //     unreadable page. The reset must cover the structural tokens but must NOT
+  //     pin the brand: the brand tokens are inline on <html>, so the only way to
+  //     swap them is js/shell.js re-deriving the light palette on `beforeprint`.
+  const printBlock = cssMedias.find((m) => /\bprint\b/.test(m.cond));
+  assert('a @media print block exists', !!printBlock);
+  const printRoot = printBlock ? parseRules(printBlock.body).find((r) => r.selectors.includes(':root')) : null;
+  assert('the print block resets tokens on :root', !!printRoot);
+  const printTokens = printRoot ? declNames(printRoot.decls) : new Set();
+  const NEEDED_IN_PRINT = ['--bg-canvas', '--bg-surface', '--bg-elevated', '--text-primary', '--text-secondary', '--border-subtle', '--bg', '--surface', '--ink', '--border'];
+  const missingPrint = NEEDED_IN_PRINT.filter((t) => !printTokens.has(t));
+  assert(`the print reset covers the ${NEEDED_IN_PRINT.length} structural tokens`,
+    missingPrint.length === 0, missingPrint.join(', '));
+  const printPinsBrand = printRoot ? /(?:^|;)\s*--(?:brand|gold)(?![\w-])\s*:/.test(printRoot.decls) : false;
+  assert('the print reset does not pin the brand (js swaps it on beforeprint)', !printPinsBrand);
+
+  // 7l. …and that JS swap must actually be wired, or printing from dark mode
+  //     keeps the lightened dark brand — too pale to read on white paper.
+  const shellSrc = fs.readFileSync(path.join(ROOT, 'js', 'shell.js'), 'utf8');
+  assert('shell.js registers a beforeprint palette swap',
+    /addEventListener\(\s*'beforeprint'/.test(shellSrc) && /addEventListener\(\s*'afterprint'/.test(shellSrc));
+  assert('shell.js installs the print palette during initShell',
+    /initPrintPalette\s*\(\s*\)/.test(shellSrc));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

@@ -25,6 +25,7 @@ Every business can make the app *theirs* — no code, no rebuild, no designer.
 - **Live preview + contrast checker** — see the palette applied instantly, with WCAG AA/AAA ratings for brand text, button fills and sidebar navigation
 - **Automatic contrast correction** — mid-tone brand colours that would fail AA against both white and black text are nudged to the nearest passing shade, so a client can pick *any* colour and never end up with unreadable text
 - **Theme-aware** — the palette is re-derived for light and dark mode, so a brand colour works in both
+- **Enterprise dark theme** — a Linear/Stripe-inspired slate layer: near-black canvas, two raised surfaces, hairline white borders, a three-step text ramp, translucent status pills and a brand-matched focus glow. Light mode is provably untouched (see [Design tokens & the dark theme](#-design-tokens--the-dark-theme))
 - **Flash-free** — applied before first paint by a render-blocking script, so there is no default-colour flicker on load
 - **Carries through everything** — PDF invoices, printed reports, QR codes and the app icons all use the business's colours
 
@@ -248,6 +249,106 @@ npm run test:config
 
 ---
 
+## 🌗 Design tokens & the dark theme
+
+Dark mode is a **Linear/Stripe-inspired slate** layer on top of the same stylesheet, not a second theme. It is built in two tiers, both in `css/styles.css`.
+
+### Tier 1 — the token blocks (section 1)
+
+`:root` declares an enterprise scale; `[data-theme="dark"]` re-points it and then **aliases the legacy tokens onto it**:
+
+```css
+/* :root — light values reproduce the legacy tokens exactly */
+--bg-canvas: #F8F8F8;  --bg-surface: #FFFFFF;  --bg-elevated: #FFFFFF;  --bg-hover: #F3F5F3;
+--border-subtle: #E4E7E4;  --border-medium: #CBD3CB;
+--text-primary: #2B2B2B;  --text-secondary: #5A5A5A;  --text-tertiary: #8A8A8A;
+
+/* [data-theme="dark"] — a near-black canvas, two raised surfaces, hairline white borders */
+--bg-canvas: #090D16;  --bg-surface: #111726;  --bg-elevated: #1A2337;  --bg-hover: #222E47;
+--border-subtle: rgba(255,255,255,.07);  --border-medium: rgba(255,255,255,.14);
+--text-primary: #F8FAFC;  --text-secondary: #94A3B8;  --text-tertiary: #64748B;
+
+/* …then the one block that makes ~1200 lines of component CSS adopt it */
+--bg: var(--bg-canvas);      --surface: var(--bg-surface);  --surface-2: var(--bg-elevated);
+--border: var(--border-subtle);  --border-strong: var(--border-medium);
+--ink: var(--text-primary);  --ink-soft: var(--text-secondary);  --ink-faint: var(--text-tertiary);
+```
+
+Because the legacy names survive as aliases, **no component rule had to change** to adopt the new palette — and any component written later keeps working either way. `--surface-2` intentionally maps to `--bg-elevated` (not `--bg-hover`): a grey panel that reads as *recessed* on white has to step *up* to be visible on a near-black canvas.
+
+Two tokens are **derived from the brand** rather than hardcoded, so a client's palette drives them:
+
+```css
+--border-focus: color-mix(in srgb, var(--brand) 60%, transparent);
+--accent-glow:  color-mix(in srgb, var(--brand) 25%, transparent);
+```
+
+The reference spec calls for a fixed indigo (`rgba(99,102,241,.6)`). If a deployment wants that exact look rather than a brand-matched ring, replace those two lines — that is the whole change.
+
+### Tier 2 — component treatments (section 25)
+
+Everything that needed a *different material* in dark, scoped so it cannot touch light mode:
+
+| Component | Dark treatment |
+|---|---|
+| Topbar / bottom nav | `backdrop-filter: blur(12px)` over `rgba(17,23,38,.75)` with a hairline bottom/top seam |
+| Sidebar | Blur + a `--border-subtle` right seam (its fill stays brand-owned — see below) |
+| Cards | 12px corners, `--border-subtle` seam, `--bg-surface` |
+| Tables | Hairline rows, a raised `--bg-elevated` head, neutral `--bg-hover` row hover |
+| Primary buttons | `inset 0 1px 0 rgba(255,255,255,.2)` sheen + a `--accent-glow` ring on hover/focus |
+| Badges | Translucent status pills (Paid/Unpaid/Partial/Overdue) instead of solid pale fills |
+| Inputs | Recessed well on `--bg-elevated`, `--border-focus` + `--accent-glow` focus ring |
+| Modal / toast / menu | `--bg-elevated` so they clear the canvas, plus a hairline |
+
+**Why the sidebar keeps its brand fill:** `js/brand.js` writes `--sidebar-bg` *inline* on `<html>` for all four sidebar styles, and an inline custom property outranks every selector. A dark rule therefore cannot repaint it — and overriding the `background` *property* instead would silently discard the client's Gradient / Solid / Deep / Light choice. So the dark theme adds only the glass material (blur, seam, top highlight) and leaves the fill to the brand engine. The **Light** sidebar style already resolves to a slate surface in dark mode.
+
+**Want a slate sidebar anyway?** Override the property, not the token — and accept that it discards the client's sidebar choice while dark mode is active:
+
+```css
+[data-theme="dark"] .sidebar {
+  background: rgba(17, 23, 38, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+```
+
+**Status pills** are driven by nine tokens so the two themes can differ in kind, not just in shade:
+
+| Token pair | Light | Dark |
+|---|---|---|
+| `--badge-paid-*` | `--success-soft` solid | `rgba(16,185,129,.12)` + `#34D399` + a `25%` ring |
+| `--badge-unpaid-*` | `--warning-soft` solid | `rgba(245,158,11,.12)` + `#FBBF24` |
+| `--badge-partial-*` | `--gold-soft` solid | `rgba(56,189,248,.12)` + `#38BDF8` |
+| `--badge-overdue-*` | `--danger-soft` solid | `rgba(244,63,94,.12)` + `#FB7185` |
+
+### Printing from dark mode
+
+Printing is paper, so dark mode is forced back to the light palette for the duration of a print job. It takes two halves, because the two token families live in different places:
+
+1. **Structural tokens** (`--bg-*`, `--text-*`, `--border-*`, and the legacy aliases) are reset to their light values by a `:root` block inside `@media print`. That block sits after `[data-theme="dark"]` at equal specificity, so it wins for the print media only.
+2. **Brand tokens** cannot be reached from CSS at all — `js/brand.js` writes `--brand*` / `--gold*` **inline on `<html>`**, and an inline custom property outranks every selector. So `js/shell.js` listens for `beforeprint` / `afterprint` and re-derives the light palette, then restores the on-screen one. Without this, the dark theme's lightened brand (chosen to stay visible on a near-black canvas) would print too pale to read on white.
+
+> **Bug this fixed:** before the refactor, printing an invoice from dark mode produced `#F8FAFC` text on a `#1B211B` block on a white page — the invoice body was unprintable. The PDF/print *export* path (`js/export.js` → `printInvoice`) was already safe, because it opens its own window with `paletteToCss(…, 'light')` forced; only the `window.print()` fallback and Ctrl/Cmd+P on a page were affected.
+
+### Guarantees
+
+Light mode is **provably unchanged**. A computed-style capture of 6 pages × 52 tokens × 29 selectors was taken before and after the refactor and diffed: the only differences are the 21 new tokens going from unset to a value — **zero** changes to any element property or legacy token.
+
+`test-markup.js` locks the contract statically (19 checks):
+
+- all 24 enterprise tokens are declared in **both** blocks
+- all 8 legacy tokens are re-declared in dark, each as an **alias** (`var(--…)`) and never a literal
+- the light block keeps **literal** legacy values — it must not alias
+- the light scale **mirrors the legacy values exactly** (so adding it changed nothing)
+- every `var()` in the dark block resolves to a declared token
+- enterprise tokens are **consumed only** under `[data-theme="dark"]` — an unscoped consumer would leak slate into light mode
+- the 16 component treatments and 6 status pills are present, and the pill fills are translucent
+- the print block resets the structural scale, does **not** pin the brand, and `shell.js` wires the `beforeprint` swap
+
+`test-e2e.js` adds the runtime half: it emulates print media in dark mode and asserts a white invoice background with dark text, then fires `beforeprint` / `afterprint` and asserts the brand palette swaps to `#2E7D32` and back.
+
+---
+
 ## 🔌 Storage & cloud sync
 
 `js/storageService.js` is the single storage interface for the whole app. Feature modules never touch IndexedDB directly.
@@ -322,14 +423,14 @@ Verified by `scripts/test-responsive.js`, which sweeps **10 widths × 6 pages** 
 Everything runs on Node built-ins plus a headless Chrome — no test framework to install.
 
 ```bash
-npm test          # 573 static checks: engine, utils, theming, config, plans, icons, markup
+npm test          # 586 static checks: engine, utils, theming, config, plans, icons, markup
 npm run test:e2e  # 356 browser checks: journeys, a11y, polish, responsive sweep, platform
-npm run test:all  # both — 929 checks
+npm run test:all  # both — 942 checks
 ```
 
 | Command | What it covers |
 |---|---|
-| `npm test` | Financial math, XSS escaping, colour math, brand-boot parity across 242 brand configurations, WCAG AA across all presets, config shape, storage-key semantics, white-label guard, quota arithmetic, licence keys, phone normalisation, icon decoding, CSS/markup contracts, the mobile-first grid contract, service-worker precache integrity, accessible names |
+| `npm test` | Financial math, XSS escaping, colour math, brand-boot parity across 242 brand configurations, WCAG AA across all presets, config shape, storage-key semantics, white-label guard, quota arithmetic, licence keys, phone normalisation, icon decoding, CSS/markup contracts, the mobile-first grid contract, the dark-theme token contract, service-worker precache integrity, accessible names |
 | `npm run test:e2e` | Every page loads clean; brand apply/persist/reset; flash-free first paint; dark mode; customer & product CRUD; invoice creation with verified totals; the free-tier cap and upgrade modal; reports; PDF/CSV/QR export (asserts the `%PDF` magic bytes); WhatsApp link construction; backup/restore; currency switching; genuine offline mode |
 | `npm run test:a11y` | Radio-group semantics, roving tabindex, arrow-key navigation (including wrap-around), accessible names for every control, keyboard reachability with a custom palette |
 | `npm run test:polish` | Button shine sweep and hover lift, ripple creation + its stacking order, the loading-state contract, recessed switch, custom checkbox, tooltips, and that `prefers-reduced-motion` genuinely neutralises the motion |
@@ -338,7 +439,7 @@ npm run test:all  # both — 929 checks
 | `npm run test:config` | `app.config.js` shape, storage-key prefixing and legacy fallback, plan/gateway declarations, script load order, and the white-label guard |
 | `npm run test:license` | Month keys, quota evaluation (free/pro/unknown plans), licence-key round-trip and rejection, phone normalisation, message templating, `wa.me` URLs |
 | `npm run test:assets` | Decodes every generated PNG and asserts dimensions, alpha coverage, corner rounding, full-bleed maskable variants and palette — this is the guard that caught every icon shipping fully transparent |
-| `npm run test:unit` / `test:brand` / `test:markup` | Individual suites |
+| `npm run test:unit` / `test:brand` / `test:markup` | Individual suites (`test:markup` owns the mobile-first grid contract **and** the dark-theme token contract) |
 | `npm run shots` | Renders the brand showcase screenshots into `.workbuddy-ai/screenshots/` |
 | `npm run test:e2e -- --suite=<file>` | Run any single script from `scripts/` against a freshly booted server + browser |
 

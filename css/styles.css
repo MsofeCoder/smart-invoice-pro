@@ -53,6 +53,47 @@
   --info: #2E7D32;
   --info-soft: #E8F5E9;
 
+  /* ---------- Enterprise surface, border & text scale ----------
+     The canonical names for chrome, surfaces, hairlines and the text ramp.
+     In dark mode the legacy tokens (--bg, --surface, --ink, --border, …) are
+     ALIASED to these, so a component may use either name and get the same
+     result.
+
+     The light values deliberately reproduce the legacy tokens exactly, so
+     adding this scale changes nothing in light mode. */
+  --bg-canvas: #F8F8F8;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #FFFFFF;
+  --bg-hover: #F3F5F3;
+
+  --border-subtle: #E4E7E4;
+  --border-medium: #CBD3CB;
+  /* Focus ring border. Derived from the brand so a client's palette drives it. */
+  --border-focus: var(--brand);
+
+  --text-primary: #2B2B2B;
+  --text-secondary: #5A5A5A;
+  --text-tertiary: #8A8A8A;
+
+  --accent-primary: var(--brand);
+  --accent-glow: var(--brand-soft);
+
+  /* ---------- Translucent status pills ----------
+     Light mode keeps the solid legacy fills (see .badge-* in section 9);
+     dark mode re-points them at the translucent values in section 25. */
+  --badge-paid-bg: var(--success-soft);
+  --badge-paid-text: var(--success);
+  --badge-paid-border: transparent;
+  --badge-unpaid-bg: var(--warning-soft);
+  --badge-unpaid-text: var(--warning);
+  --badge-unpaid-border: transparent;
+  --badge-partial-bg: var(--gold-soft);
+  --badge-partial-text: var(--gold-ink);
+  --badge-partial-border: transparent;
+  --badge-overdue-bg: var(--danger-soft);
+  --badge-overdue-text: var(--danger);
+  --badge-overdue-border: transparent;
+
   --radius-sm: 8px;
   --radius: 12px;
   --radius-lg: 18px;
@@ -78,7 +119,79 @@
   --speed: 0.22s;
 }
 
+/* ==========================================================================
+   Dark theme — enterprise slate
+   ==========================================================================
+   A Linear/Stripe-inspired slate scale: a near-black canvas, two raised
+   surfaces, hairline white borders, and a three-step text ramp.
+
+   Two properties make this safe to layer on top of a white-label app:
+
+     1. The brand tokens (--brand*, --gold*, --sidebar-*) are still written
+        INLINE on <html> by js/brand.js. An inline custom property outranks this
+        block, so a client's own palette always wins. Everything below that is
+        expressed in terms of --brand therefore re-themes automatically.
+
+     2. The legacy tokens (--bg, --surface, --ink, --border, …) are ALIASED to
+        the new scale rather than deleted. That means all ~1200 lines of
+        component CSS adopt the slate palette without a single component rule
+        needing to change, and any component written later keeps working.
+
+   Component-level dark rules live in section 25.
+   ========================================================================== */
 [data-theme="dark"] {
+  /* ---------- Surface scale ---------- */
+  --bg-canvas: #090D16;
+  --bg-surface: #111726;
+  --bg-elevated: #1A2337;
+  --bg-hover: #222E47;
+
+  /* ---------- Micro-borders ---------- */
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-medium: rgba(255, 255, 255, 0.14);
+  /* The reference spec is rgba(99, 102, 241, 0.6) — an indigo ring. It is
+     derived from --brand instead so the ring follows a client's palette rather
+     than fighting it. Choose the Indigo preset for the reference look, or see
+     the README for the one line that pins it to indigo. */
+  --border-focus: color-mix(in srgb, var(--brand) 60%, transparent);
+
+  /* ---------- Typography contrast ---------- */
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-tertiary: #64748B;
+
+  /* ---------- Accent & glow (brand-derived — see --border-focus note) ---------- */
+  --accent-primary: var(--brand);
+  --accent-glow: color-mix(in srgb, var(--brand) 25%, transparent);
+
+  /* ---------- Translucent status pills ---------- */
+  --badge-paid-bg: rgba(16, 185, 129, 0.12);
+  --badge-paid-text: #34D399;
+  --badge-paid-border: rgba(16, 185, 129, 0.25);
+  --badge-unpaid-bg: rgba(245, 158, 11, 0.12);
+  --badge-unpaid-text: #FBBF24;
+  --badge-unpaid-border: rgba(245, 158, 11, 0.25);
+  --badge-partial-bg: rgba(56, 189, 248, 0.12);
+  --badge-partial-text: #38BDF8;
+  --badge-partial-border: rgba(56, 189, 248, 0.25);
+  --badge-overdue-bg: rgba(244, 63, 94, 0.12);
+  --badge-overdue-text: #FB7185;
+  --badge-overdue-border: rgba(244, 63, 94, 0.25);
+
+  /* ---------- Legacy aliases → enterprise scale ----------
+     The one block that makes the whole stylesheet adopt the new palette. */
+  --bg: var(--bg-canvas);
+  --surface: var(--bg-surface);
+  --surface-2: var(--bg-elevated);
+  --border: var(--border-subtle);
+  --border-strong: var(--border-medium);
+  --ink: var(--text-primary);
+  --ink-soft: var(--text-secondary);
+  --ink-faint: var(--text-tertiary);
+
+  /* ---------- Brand fallbacks ----------
+     Only used if js/brand.js never runs (missing script / blocked). Kept in
+     sync with buildPalette(DEFAULT_BRAND, 'dark') — asserted by test-brand.js. */
   --brand: #44B94A;
   --brand-dark: #2E7D32;
   --brand-darker: #205823;
@@ -91,14 +204,8 @@
   --gold-soft: rgba(250, 188, 87, 0.14);
   --gold-ink: #FABC57;
   --gold-contrast: #1A1A1A;
-  --ink: #ECEFEC;
-  --ink-soft: #B9C2B9;
-  --ink-faint: #7E8A7E;
-  --bg: #121612;
-  --surface: #1B211B;
-  --surface-2: #222A22;
-  --border: #2C362C;
-  --border-strong: #3A463A;
+
+  /* ---------- Status ---------- */
   --danger: #EF5350;
   --danger-soft: rgba(239, 83, 80, 0.14);
   --success: #66BB6A;
@@ -107,6 +214,10 @@
   --warning-soft: rgba(255, 167, 38, 0.14);
   --info: #81C784;
   --info-soft: rgba(129, 199, 132, 0.14);
+
+  /* ---------- Shadows ----------
+     Deeper and softer than light mode: a near-black canvas swallows a small
+     shadow entirely, so the offset has to grow to read as depth. */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.35);
   --shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
@@ -1059,9 +1170,222 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; lin
   .stat-card:hover .stat-deco { transform: none; }
 }
 
-/* ---------- 25. Print ---------- */
+/* ---------- 25. Dark theme — component treatments ----------
+   The token layer (the [data-theme="dark"] block in section 1) already
+   re-paints every surface, hairline and text node in the app, because the
+   legacy tokens are aliased to the enterprise slate scale rather than deleted.
+   So most of the ~1200 lines above need nothing here.
+
+   What is left is the short list of components that either
+     (a) hardcode a light-only value in their base rule that has no dark
+         counterpart (a shadow tinted for a white canvas, a solid pale badge
+         fill, a white tooltip bubble), or
+     (b) need a *different material* in dark — glass chrome, a raised overlay
+         that has to clear a near-black canvas, an inner sheen so a filled
+         button reads as a solid object rather than a flat sticker.
+
+   Every selector below is scoped to [data-theme="dark"], so light mode cannot
+   be affected by construction. scripts/.diag-baseline.js captures light-mode
+   computed styles and is diffed to prove that, and scripts/test-markup.js
+   asserts the two token blocks stay in sync. */
+
+/* 25.1 Chrome — a blurred translucent bar rather than an opaque slab --------
+   The base .topbar already blurs, but derives its fill from --surface at 88%,
+   which on a near-black canvas is effectively opaque — the blur has nothing to
+   show. Pin the alpha lower so the glass actually reads as glass. */
+[data-theme="dark"] .topbar {
+  background: rgba(17, 23, 38, 0.75);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* The sidebar fill is owned by the brand engine, which writes --sidebar-bg
+   INLINE on <html> (js/brand.js → sidebarVars) for all four sidebar styles.
+   An inline custom property outranks any selector, so a dark rule here cannot
+   repaint it — and overriding the `background` *property* instead would
+   silently discard the client's Gradient / Solid / Deep / Light choice. So we
+   keep the brand fill and add only the glass material: a blur, a hairline seam
+   and a top highlight. See the README for the one-line opt-in to a slate
+   sidebar if a deployment genuinely wants one. */
+[data-theme="dark"] .sidebar {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-right: 1px solid var(--border-subtle);
+}
+[data-theme="dark"] .sidebar-brand {
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .bottom-nav {
+  background: rgba(17, 23, 38, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-subtle);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+}
+
+/* 25.2 Cards — tighter corners and a hairline seam -------------------------
+   18px reads as soft/consumer; 12px reads as a dense enterprise panel. */
+[data-theme="dark"] .card { border-radius: var(--radius); }
+[data-theme="dark"] .card-header,
+[data-theme="dark"] .card-footer { border-color: var(--border-subtle); }
+[data-theme="dark"] .card-hover:hover { border-color: var(--border-medium); }
+
+/* 25.3 Tables — hairline rows, a raised head, a neutral row hover ----------
+   .table-wrap is nested INSIDE .card, so the card already draws the outer
+   border; adding one here would double it. Only the radius needs to match. */
+[data-theme="dark"] .table-wrap { border-radius: var(--radius); }
+[data-theme="dark"] .table thead th {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-medium);
+}
+[data-theme="dark"] .table tbody td { border-bottom: 1px solid var(--border-subtle); }
+[data-theme="dark"] .table tbody tr:hover { background: var(--bg-hover); }
+[data-theme="dark"] .table tbody tr:last-child td { border-bottom: none; }
+
+/* 25.4 Buttons — an inner sheen so a filled button reads as a solid object,
+   and a glow instead of a tint when focused. */
+[data-theme="dark"] .btn-primary { box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2), var(--shadow-brand); }
+[data-theme="dark"] .btn-gold,
+[data-theme="dark"] .btn-success,
+[data-theme="dark"] .btn-danger { box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.2), var(--shadow-sm); }
+[data-theme="dark"] .btn-primary:hover,
+[data-theme="dark"] .btn-primary:focus-visible {
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.24), var(--shadow-brand), 0 0 0 4px var(--accent-glow);
+}
+[data-theme="dark"] .btn-outline { background: var(--bg-elevated); border-color: var(--border-medium); color: var(--text-primary); }
+[data-theme="dark"] .btn-outline:hover { border-color: var(--brand); color: var(--brand-ink); background: var(--accent-glow); }
+[data-theme="dark"] .btn-ghost { color: var(--text-secondary); }
+[data-theme="dark"] .btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+[data-theme="dark"] .icon-btn { color: var(--text-secondary); }
+[data-theme="dark"] .icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* 25.5 Forms — a recessed well on a slate ground, and a ring that glows ---- */
+[data-theme="dark"] .input,
+[data-theme="dark"] .select,
+[data-theme="dark"] .textarea {
+  background: var(--bg-elevated);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+[data-theme="dark"] .input::placeholder,
+[data-theme="dark"] .textarea::placeholder { color: var(--text-tertiary); }
+[data-theme="dark"] .input:hover:not(:focus):not(:disabled),
+[data-theme="dark"] .select:hover:not(:focus):not(:disabled),
+[data-theme="dark"] .textarea:hover:not(:focus):not(:disabled) { border-color: var(--text-tertiary); }
+[data-theme="dark"] .input:focus,
+[data-theme="dark"] .select:focus,
+[data-theme="dark"] .textarea:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 4px var(--accent-glow), inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+[data-theme="dark"] .input:disabled,
+[data-theme="dark"] .select:disabled,
+[data-theme="dark"] .textarea:disabled { background: var(--bg-surface); opacity: 0.6; }
+[data-theme="dark"] .input-group .input-group-addon {
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
+  color: var(--text-secondary);
+}
+[data-theme="dark"] .field > label,
+[data-theme="dark"] .field > .field-label { color: var(--text-secondary); }
+
+/* 25.6 Status pills — a translucent tint with a matching text colour and a
+   hairline ring, instead of the solid near-white fills the light palette uses
+   (a #E8F5E9 pill on a #111726 card is a glaring white blob). */
+[data-theme="dark"] .badge-green  { background: var(--badge-paid-bg);    color: var(--badge-paid-text);    border: 1px solid var(--badge-paid-border); }
+[data-theme="dark"] .badge-orange { background: var(--badge-unpaid-bg);  color: var(--badge-unpaid-text);  border: 1px solid var(--badge-unpaid-border); }
+[data-theme="dark"] .badge-gold   { background: var(--badge-partial-bg); color: var(--badge-partial-text); border: 1px solid var(--badge-partial-border); }
+[data-theme="dark"] .badge-red    { background: var(--badge-overdue-bg); color: var(--badge-overdue-text); border: 1px solid var(--badge-overdue-border); }
+[data-theme="dark"] .badge-blue   { background: var(--badge-partial-bg); color: var(--badge-partial-text); border: 1px solid var(--badge-partial-border); }
+[data-theme="dark"] .badge-gray   { background: var(--bg-hover);         color: var(--text-secondary);     border: 1px solid var(--border-subtle); }
+
+/* 25.7 Chips — a raised pill that lights up on hover ---------------------- */
+[data-theme="dark"] .chip { background: var(--bg-elevated); border-color: var(--border-subtle); color: var(--text-secondary); }
+[data-theme="dark"] .chip:hover { border-color: var(--border-focus); color: var(--text-primary); }
+[data-theme="dark"] .chip.active { background: var(--brand); color: var(--brand-contrast); border-color: var(--brand); }
+
+/* 25.8 Overlays — a modal, toast or menu has to sit ABOVE the canvas, so it
+   gets the elevated surface rather than the base one, plus a hairline so its
+   edge does not dissolve into the shadow. */
+[data-theme="dark"] .modal-overlay { background: rgba(2, 4, 9, 0.72); }
+[data-theme="dark"] .modal { background: var(--bg-elevated); border: 1px solid var(--border-subtle); }
+[data-theme="dark"] .modal-header,
+[data-theme="dark"] .modal-footer { border-color: var(--border-subtle); }
+/* The three sides only: the left edge is the toast's status stripe, and a
+   blanket `border-color` here would be the same specificity as
+   `.toast.success` but later in the file — flattening it to grey. */
+[data-theme="dark"] .toast {
+  background: var(--bg-elevated);
+  border-top-color: var(--border-subtle);
+  border-right-color: var(--border-subtle);
+  border-bottom-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+[data-theme="dark"] .toast .toast-close { color: var(--text-tertiary); }
+[data-theme="dark"] .dropdown-menu { background: var(--bg-elevated); border-color: var(--border-subtle); }
+[data-theme="dark"] .dropdown-item { color: var(--text-primary); }
+[data-theme="dark"] .dropdown-item:hover { background: var(--bg-hover); }
+[data-theme="dark"] .dropdown-item svg { color: var(--text-tertiary); }
+[data-theme="dark"] .dropdown-divider { background: var(--border-subtle); }
+
+/* 25.9 Document, meters, skeletons & plans -------------------------------
+   The tooltip is the one place worth calling out: its base rule is
+   `background: var(--ink); color: var(--bg)`, which inverts to a near-white
+   bubble in dark mode. A slate bubble with light text matches the rest of the
+   theme and is far less glaring on a near-black canvas. */
+[data-theme="dark"] .invoice-doc { background: var(--bg-elevated); border-color: var(--border-subtle); }
+[data-theme="dark"] .invoice-doc .doc-logo { background: var(--bg-hover); }
+[data-theme="dark"] .invoice-doc .doc-table td { border-bottom: 1px solid var(--border-subtle); }
+[data-theme="dark"] .invoice-doc .doc-footer { border-color: var(--border-subtle); }
+[data-theme="dark"] .progress { background: var(--bg-hover); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4); }
+[data-theme="dark"] .meter { background: var(--bg-hover); }
+[data-theme="dark"] .skeleton { background: var(--bg-hover); }
+[data-theme="dark"] .switch .slider { background: var(--bg-hover); }
+[data-theme="dark"] .plan-card { background: var(--bg-surface); }
+[data-theme="dark"] .gateway { background: var(--bg-surface); }
+[data-theme="dark"] .tab.active { color: var(--brand-ink); }
+[data-theme="dark"] .tip::after {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+}
+
+/* 25.10 Variants that a generic dark rule would otherwise flatten -----------
+   Every rule above is a generic `[data-theme="dark"] <component>` override, so
+   it lands at exactly the same specificity as that component's own variant
+   rules — and because this section is last in the file, "same specificity"
+   means the generic dark rule wins. Left alone, that silently strips the
+   danger/success accents the variants exist to provide. Restore them one step
+   higher. */
+[data-theme="dark"] .dropdown-item.danger { color: var(--danger); }
+[data-theme="dark"] .dropdown-item.danger svg { color: var(--danger); }
+[data-theme="dark"] .dropdown-item.danger:hover { background: var(--danger-soft); }
+[data-theme="dark"] .icon-btn.danger:hover { background: var(--danger-soft); color: var(--danger); }
+[data-theme="dark"] .icon-btn.success:hover { background: var(--success-soft); color: var(--success); }
+
+/* ---------- 26. Print ---------- */
 @media print {
   @page { size: A4 portrait; margin: 12mm; }
+
+  /* Printing is paper, so force the LIGHT structural scale. Without this a
+     dark-mode session prints near-white text (--ink resolves to #F8FAFC) on a
+     slate block (.invoice-doc / .card keep --bg-elevated) — an unreadable page.
+     This block sits after [data-theme="dark"] at equal specificity, so it wins
+     for the print media. The BRAND tokens are not here: they are written inline
+     on <html> by js/brand.js and cannot be reached from a stylesheet, so
+     js/shell.js swaps in the light palette on `beforeprint` instead. */
+  :root {
+    --bg-canvas: #F8F8F8;  --bg-surface: #FFFFFF;  --bg-elevated: #FFFFFF;  --bg-hover: #F3F5F3;
+    --border-subtle: #E4E7E4;  --border-medium: #CBD3CB;
+    --text-primary: #2B2B2B;  --text-secondary: #5A5A5A;  --text-tertiary: #8A8A8A;
+    --bg: #F8F8F8;  --surface: #FFFFFF;  --surface-2: #F3F5F3;
+    --border: #E4E7E4;  --border-strong: #CBD3CB;
+    --ink: #2B2B2B;  --ink-soft: #5A5A5A;  --ink-faint: #8A8A8A;
+    --accent-glow: var(--brand-soft);  --border-focus: var(--brand);
+  }
+
   body { background: #fff !important; }
   .sidebar, .topbar, .bottom-nav, .fab, .toast-container, .no-print, .modal-overlay { display: none !important; }
   .main { margin: 0 !important; }
@@ -1072,7 +1396,7 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; lin
   .print-break { page-break-before: always; }
 }
 
-/* ---------- 26. Subscription, plans & payment gateways ----------
+/* ---------- 27. Subscription, plans & payment gateways ----------
    Mobile-first like everything else: one column at base, three across once
    there is room for them. */
 .plan-grid { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
@@ -1137,7 +1461,7 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; lin
   .plan-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
-/* ---------- 27. Responsive (mobile-first) ----------
+/* ---------- 28. Responsive (mobile-first) ----------
    Base styles above already target the phone. These blocks add capability as
    the viewport grows, so nothing has to be un-done with a max-width override.
 

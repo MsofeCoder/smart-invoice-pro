@@ -136,6 +136,32 @@ function toggleTheme() {
   refreshBrand();
 }
 
+/* ================= Print =================
+   Printing is paper. A dark-mode session would otherwise print near-white text
+   on a slate block. The print stylesheet (section 26 of css/styles.css) resets
+   the structural scale, but it cannot reach the BRAND tokens: js/brand.js writes
+   those inline on <html>, and an inline custom property outranks every selector.
+   So re-derive the light palette for the duration of the print job and restore
+   the on-screen one afterwards.
+
+   `beforeprint` covers both Ctrl/Cmd+P and an explicit window.print(), in every
+   current browser. The invoice PDF/print path (js/export.js → printInvoice)
+   opens its own window with the light palette already forced, so it needs none
+   of this — this is for printing the app's own pages. */
+let printRestoreTheme = null;
+
+function initPrintPalette() {
+  if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
+  window.addEventListener('beforeprint', () => {
+    printRestoreTheme = currentTheme();
+    if (printRestoreTheme === 'dark') applyPalette(activeBrand, 'light');
+  });
+  window.addEventListener('afterprint', () => {
+    if (printRestoreTheme === 'dark') applyPalette(activeBrand, 'dark');
+    printRestoreTheme = null;
+  });
+}
+
 /* ================= Ripple =================
    Press feedback on the prominent action buttons. Delegated from the document
    so it also covers markup rendered later (table rows, modals, toasts) without
@@ -338,6 +364,7 @@ export async function initShell() {
   initSidebar();
   initRipple();
   initInstall();
+  initPrintPalette();
   registerSW();
   initConnectivity();
 

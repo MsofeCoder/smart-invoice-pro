@@ -428,6 +428,40 @@ r.check('print stylesheet carries custom brand', printBranding.hasBrand === true
 r.check('print stylesheet carries accent', printBranding.hasAccent === true, printBranding.hasAccent);
 await evaluate(`window.AppConfig.removeStorage('brand')`);
 
+/* Dark mode must not print as a dark page. Two halves to that: the print
+   stylesheet resets the structural scale (reachable from CSS), and js/shell.js
+   swaps in the light brand palette on `beforeprint` — the brand tokens are
+   written inline on <html> and cannot be reached from a stylesheet at all. */
+await goto('invoice.html', 2600);
+await evaluate(`document.documentElement.getAttribute('data-theme') === 'dark' || document.querySelector('#themeToggle').click()`);
+await sleep(800);
+r.eq('dark mode enabled for the print check', await evaluate(`document.documentElement.getAttribute('data-theme')`), 'dark');
+
+await send('Emulation.setEmulatedMedia', { media: 'print' });
+await sleep(400);
+const printCss = JSON.parse(await evaluate(`(() => {
+  const cs = getComputedStyle(document.querySelector('.invoice-doc'));
+  return JSON.stringify({ bg: cs.backgroundColor, color: cs.color });
+})()`));
+r.check('print forces a light invoice background', printCss.bg === 'rgb(255, 255, 255)', printCss.bg);
+r.check('print forces dark invoice text', printCss.color === 'rgb(43, 43, 43)', printCss.color);
+
+await evaluate(`window.dispatchEvent(new Event('beforeprint'))`);
+await sleep(500);
+r.eq('beforeprint swaps in the light brand palette',
+  await evaluate(`getComputedStyle(document.documentElement).getPropertyValue('--brand').trim()`), '#2E7D32');
+await evaluate(`window.dispatchEvent(new Event('afterprint'))`);
+await sleep(500);
+r.check('afterprint restores the dark brand',
+  (await evaluate(`getComputedStyle(document.documentElement).getPropertyValue('--brand').trim()`)) !== '#2E7D32');
+
+await send('Emulation.setEmulatedMedia', { media: '' });
+await sleep(300);
+await evaluate(`document.querySelector('#themeToggle').click()`);
+await sleep(700);
+r.eq('theme restored to light after the print check',
+  await evaluate(`document.documentElement.getAttribute('data-theme')`), 'light');
+
 /* ============ L. Settings save + backup ============ */
 r.section('L. Settings & backup');
 await goto('settings.html', 2600);
