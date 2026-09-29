@@ -405,7 +405,11 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; lin
 /* The hamburger only exists while the sidebar is off-canvas. */
 #menuBtn { display: inline-grid; }
 
-.content { padding: 14px; flex: 1; width: 100%; max-width: 1440px; margin: 0 auto; min-width: 0; }
+/* `overflow-x: clip` rather than `hidden`: clip does NOT create a scroll
+   container, so it cannot break `position: sticky` or scroll-into-view for any
+   descendant — it only stops a stray wide child from producing a page-level
+   horizontal scrollbar. Belt and braces: .grid > * already removes the cause. */
+.content { padding: 14px; flex: 1; width: 100%; max-width: 1440px; margin: 0 auto; min-width: 0; overflow-x: clip; }
 
 /* Bottom navigation — the primary nav on touch devices, hidden at ≥1024px */
 .bottom-nav {
@@ -758,6 +762,13 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; lin
 .col-span-1, .col-span-2, .col-span-3, .col-span-4, .col-span-5, .col-span-6,
 .col-span-7, .col-span-8, .col-span-9, .col-span-10, .col-span-11, .col-span-12 { grid-column: auto; }
 
+/* A grid item defaults to `min-width: auto`, whose automatic minimum is the
+   item's MIN-CONTENT size. So a wide child — a 640px table, a 90-column chart,
+   a nowrap button row — forces its track wider than its share and the grid
+   overflows the page, even though every track is already `minmax(0, 1fr)`.
+   Collapsing the tracks is only half the contract; this is the other half. */
+.grid > * { min-width: 0; }
+
 /* ---------- 15. Empty state ---------- */
 .empty-state { text-align: center; padding: 48px 24px; }
 .empty-state .empty-icon {
@@ -857,8 +868,39 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; lin
 .invoice-doc .doc-footer { border-top: 1px solid var(--border); margin-top: 28px; padding-top: 16px; font-size: 0.78rem; color: var(--ink-faint); text-align: center; }
 
 /* ---------- 22. Charts ---------- */
-.chart-bar { display: flex; align-items: flex-end; gap: 8px; height: 200px; padding-top: 10px; }
-.chart-bar .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+/* The bar chart is a flex row with one column per day. A flex item's default
+   `min-width: auto` floors it at its own min-content width, so 30 or 90 date
+   columns refuse to shrink below their labels. They then overflow the card —
+   and because the card is a GRID item (also min-width: auto) the overflow drags
+   the grid, and the page, wider than the viewport. So the chart owns its own
+   overflow and scrolls; it never pushes the layout wide.
+
+   Column width comes from --bar-w, switched by data-density (set in
+   renderSalesChart, js/app.js):
+     0px      a 7-day range shares the width equally and fills the card
+     40px     a 30-day range gets a readable column and the chart scrolls
+     32px     a 90-day range, same idea, tighter
+   flex-grow stays 1 so a short range still fills a wide card. */
+.chart-bar {
+  --bar-w: 0px;
+  display: flex; align-items: flex-end; gap: 8px; height: 200px; padding-top: 10px;
+  width: 100%; max-width: 100%; min-width: 0;
+  overflow-x: auto; overflow-y: hidden;
+  padding-bottom: 6px;
+  overscroll-behavior-x: contain;
+}
+.chart-bar[data-density="dense"] { --bar-w: 40px; }
+.chart-bar[data-density="ultra"] { --bar-w: 32px; }
+.chart-bar .bar-col {
+  /* min-width: 0 is what lets the basis actually hold — without it the
+     automatic minimum re-inflates the column to its label width. */
+  flex: 1 0 var(--bar-w); min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end;
+}
+/* At 30/90 columns a money value is wider than its own column and would collide
+   with its neighbour. The bar's title attribute already carries the figure. */
+.chart-bar[data-density="dense"] .bar-value,
+.chart-bar[data-density="ultra"] .bar-value { display: none; }
 .chart-bar .bar-track { width: 100%; max-width: 42px; height: 100%; background: var(--surface-2); border-radius: 8px 8px 4px 4px; display: flex; align-items: flex-end; overflow: hidden; }
 .chart-bar .bar-fill { width: 100%; background: linear-gradient(180deg, var(--brand-light), var(--brand)); border-radius: 8px 8px 4px 4px; transition: height 0.6s var(--ease-spring); min-height: 3px; }
 .chart-bar .bar-fill.gold { background: linear-gradient(180deg, var(--gold-light), var(--gold)); }
@@ -1569,11 +1611,13 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; lin
   .ml-auto.flex.gap-3 { flex-wrap: wrap; justify-content: flex-end; }
   .tabs { width: 100%; }
 
-  /* Bar values ("796,500.00") are wider than a squeezed column, so they used to
-     collide with their neighbours. Give every column a readable minimum and
-     let the chart scroll instead of crushing it. */
-  .chart-bar { overflow-x: auto; padding-bottom: 6px; }
-  .chart-bar .bar-col { flex: 0 0 58px; }
+  /* The chart already scrolls at every width (section 22) — this used to be a
+     mobile-only patch, which is exactly why the 30/90-day overflow survived on
+     desktop. On a phone even 7 columns are too narrow for a money label, so
+     every density gets a fixed readable column here. */
+  .chart-bar { --bar-w: 58px; }
+  .chart-bar[data-density="dense"] { --bar-w: 58px; }
+  .chart-bar[data-density="ultra"] { --bar-w: 44px; }
   .chart-bar .bar-value { font-size: 0.6rem; }
   .chart-bar .bar-label { font-size: 0.64rem; }
 

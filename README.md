@@ -59,7 +59,7 @@ Every business can make the app *theirs* — no code, no rebuild, no designer.
 - **Phone chrome** — off-canvas sidebar drawer with backdrop, bottom tab bar, FAB that clears the bar
 - **Tablet chrome** — bottom bar retires, hamburger drawer takes over, 2–3 up grids
 - **Desktop chrome** — sidebar docks, 12-column grid with real spans, full navigation
-- **Charts adapt** — bar charts scroll rather than crush their labels; the donut legend wraps below the chart
+- **Charts adapt** — bar charts own their own overflow: the columns get a density-driven width (normal → dense → ultra) and the track scrolls internally rather than crushing its labels or pushing the page sideways. The donut legend wraps below the chart
 
 ### Offline & PWA
 - **Service worker** precaches the entire app shell — works **100% offline** after the first visit
@@ -411,10 +411,13 @@ Three rules make it hold:
 1. **Every grid collapses at base.** `.grid-cols-12` and friends resolve to a single column until a `min-width` block turns them on, and every `.col-span-N` is `grid-column: auto` until then. Leaving a 12-column grid un-collapsed was the worst bug this app shipped: each child carries `col-span-N`, which resolved to `span 1` of 12 and crushed a chart card to **9px** on a 320px phone.
 2. **Every flexible track is `minmax(0, 1fr)`.** Bare `1fr` means `minmax(auto, 1fr)`, and that *auto* minimum is min-content — so one wide child (a 640px table) forces the track, and the page, wider than the screen.
 3. **Flex children get `min-width: 0`.** Without it a toolbar's button cluster refuses to shrink below the sum of its buttons and pushes the page sideways.
+4. **Grid items get `min-width: 0` too.** Collapsing the track to `minmax(0, 1fr)` is only half the contract: a grid item's automatic minimum is *its own* min-content size, so `.grid > * { min-width: 0 }` is what actually lets a chart card be narrower than its widest bar column. Without it the card stretches the track and drags the whole page right.
+
+The dashboard's Sales Overview chart is the case that exposed rule 4. `.chart-bar` used to be `overflow-x: visible` above 768px, so 30 and 90 days of bars — each as wide as its `TZS 1,662,930.00` label — made the card's min-content width thousands of pixels. The card then overflowed its `col-span-8` column and overlapped the Invoice Status card beside it, and the page grew a horizontal scrollbar. The fix has two halves: the chart now owns its overflow at **every** width (`width/max-width: 100%`, `min-width: 0`, `overflow-x: auto`, `overscroll-behavior-x: contain`) with a `data-density` attribute driving the column width (`--bar-w`: unset → `40px` → `32px` for normal/dense/ultra, labels hidden once a column can no longer hold them), and `.content` gained `overflow-x: clip` — *clip*, not `hidden`, because `clip` does not create a scroll container and so cannot break `position: sticky` or scroll-into-view.
 
 Column counts ramp with the width actually available, not just the viewport: docking the sidebar removes 264px, so the 4-up stat grid waits until 1280px rather than squeezing `TZS 1,662,930.00` below its own text width.
 
-Verified by `scripts/test-responsive.js`, which sweeps **10 widths × 6 pages** and fails on page overflow, crushed grids, clipped text and chart-label collisions — plus the static contract in `test-markup.js` that catches an un-collapsed grid without needing a browser.
+Verified by `scripts/test-responsive.js`, which sweeps **10 widths × 6 pages** and fails on page overflow, crushed grids, clipped text and chart-label collisions — then sweeps the dashboard's **7/30/90-day chart ranges × 4 widths (375/768/1024/1440px)**, asserting page overflow ≤ 1px, zero Sales-Overview/Invoice-Status overlap, no bar-label collisions, the right bar count and the right `data-density` — plus the static contract in `test-markup.js` that catches an un-collapsed grid without needing a browser.
 
 ---
 
@@ -423,9 +426,9 @@ Verified by `scripts/test-responsive.js`, which sweeps **10 widths × 6 pages** 
 Everything runs on Node built-ins plus a headless Chrome — no test framework to install.
 
 ```bash
-npm test          # 586 static checks: engine, utils, theming, config, plans, icons, markup
-npm run test:e2e  # 356 browser checks: journeys, a11y, polish, responsive sweep, platform
-npm run test:all  # both — 942 checks
+npm test          # 592 static checks: engine, utils, theming, config, plans, icons, markup
+npm run test:e2e  # 389 browser checks: journeys, a11y, polish, responsive sweep, platform
+npm run test:all  # both — 981 checks
 ```
 
 | Command | What it covers |
@@ -434,7 +437,7 @@ npm run test:all  # both — 942 checks
 | `npm run test:e2e` | Every page loads clean; brand apply/persist/reset; flash-free first paint; dark mode; customer & product CRUD; invoice creation with verified totals; the free-tier cap and upgrade modal; reports; PDF/CSV/QR export (asserts the `%PDF` magic bytes); WhatsApp link construction; backup/restore; currency switching; genuine offline mode |
 | `npm run test:a11y` | Radio-group semantics, roving tabindex, arrow-key navigation (including wrap-around), accessible names for every control, keyboard reachability with a custom palette |
 | `npm run test:polish` | Button shine sweep and hover lift, ripple creation + its stacking order, the loading-state contract, recessed switch, custom checkbox, tooltips, and that `prefers-reduced-motion` genuinely neutralises the motion |
-| `npm run test:responsive` | Sweeps 10 widths (320→1600px) × 6 pages, failing on page overflow, crushed grids, clipped text and chart-label collisions — then asserts the chrome contract (bottom nav → hamburger drawer → docked sidebar) |
+| `npm run test:responsive` | Sweeps 10 widths (320→1600px) × 6 pages, failing on page overflow, crushed grids, clipped text and chart-label collisions — then the dashboard chart ranges (7/30/90 days × 375/768/1024/1440px) for overflow, card overlap, label collisions and `data-density` — then asserts the chrome contract (bottom nav → hamburger drawer → docked sidebar) |
 | `npm run test:platform` | Storage adapter contract (including that a failed cloud switch falls back to local), the free-tier gate and upgrade modal, licence activation/persistence/reset, payment-gateway rendering, the WhatsApp share path and its popup-blocked fallback, runtime white-label identity, and the service-worker offline cache |
 | `npm run test:config` | `app.config.js` shape, storage-key prefixing and legacy fallback, plan/gateway declarations, script load order, and the white-label guard |
 | `npm run test:license` | Month keys, quota evaluation (free/pro/unknown plans), licence-key round-trip and rejection, phone normalisation, message templating, `wa.me` URLs |

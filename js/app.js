@@ -128,6 +128,13 @@ function renderSalesChart(invoices) {
     invoices.filter((inv) => inv.issueDate === b.key && inv.status !== 'draft' && inv.status !== 'cancelled').map((inv) => inv.grandTotal)
   ));
   const max = Math.max(...totals, 1);
+
+  /* Drives the column width in section 22 of css/styles.css. A 7-day range
+     shares the card equally; 30 and 90 need a readable fixed column, so the
+     chart scrolls horizontally instead of overflowing the card (and, because
+     the card is a grid item, the page). */
+  el.dataset.density = days <= 14 ? 'normal' : days <= 45 ? 'dense' : 'ultra';
+
   el.innerHTML = buckets.map((b, i) => {
     const h = Math.max(3, Math.round((totals[i] / max) * 100));
     const isGold = i === buckets.length - 1;

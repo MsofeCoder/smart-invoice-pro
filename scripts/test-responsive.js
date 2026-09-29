@@ -16,7 +16,7 @@
  *
  * Run via `npm run test:responsive`, or `npm run test:e2e` for the whole set.
  */
-import { CONFIG, connect, createReporter } from './lib/cdp.js';
+import { CONFIG, connect, createReporter, sleep } from './lib/cdp.js';
 
 const r = createReporter('Responsive');
 const { send, evaluate, goto } = await connect();
@@ -207,6 +207,65 @@ const at1440 = await chrome(1440);
 r.eq('1440px: bottom nav gone', at1440.navDisplay, 'none');
 r.check('1440px: sidebar docked', at1440.sbLeft === 0 && at1440.sbWidth >= 200, `left=${at1440.sbLeft} w=${at1440.sbWidth}`);
 r.eq('1440px: hamburger hidden', at1440.menuDisplay, 'none');
+
+/* ============ D. Dashboard chart ranges ============
+   Section A only ever measures the DEFAULT 7-day chart. The bar chart is a flex
+   row, and a flex item defaults to `min-width: auto` — so a 30- or 90-day range
+   inflates every column to its own label width, overflowing the card and, since
+   the card is a grid item, the entire page. That is exactly how a 1440px / 90D
+   dashboard shipped overflowing by 1641px: nothing here ever changed the range.
+   Sweep all three ranges at the widths the bug report named. */
+r.section('D. Dashboard chart ranges');
+{
+  const RANGES = ['7', '30', '90'];
+  const RANGE_WIDTHS = [375, 768, 1024, 1440];
+  for (const w of RANGE_WIDTHS) {
+    await send('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: false });
+    for (const range of RANGES) {
+      await goto('index.html', 3000);
+      await evaluate(`document.querySelector('[data-range="${range}"]').click()`);
+      await sleep(600);
+      const d = JSON.parse(await evaluate(`(() => {
+        const doc = document.documentElement;
+        const chart = document.querySelector('#salesChart');
+        const salesCard = chart && chart.closest('.card');
+        const statusCard = document.querySelector('.col-span-4.card');
+        let overlap = 0;
+        if (salesCard && statusCard) {
+          const a = salesCard.getBoundingClientRect();
+          const b = statusCard.getBoundingClientRect();
+          const ox = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+          const oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+          if (ox > 0 && oy > 0) overlap = Math.round(ox);
+        }
+        const labels = Array.from(document.querySelectorAll('#salesChart .bar-label'));
+        let collisions = 0;
+        for (let i = 1; i < labels.length; i++) {
+          const a = labels[i - 1].getBoundingClientRect();
+          const b = labels[i].getBoundingClientRect();
+          if (b.left < a.right - 0.5) collisions++;
+        }
+        return JSON.stringify({
+          bars: document.querySelectorAll('#salesChart .bar-col').length,
+          pageOverflow: doc.scrollWidth - doc.clientWidth,
+          overlap, collisions,
+          density: chart ? chart.dataset.density : null,
+        });
+      })()`));
+
+      const problems = [];
+      if (d.pageOverflow > 1) problems.push(`page overflows by ${d.pageOverflow}px`);
+      if (d.overlap > 0) problems.push(`Sales/Status cards overlap by ${d.overlap}px`);
+      if (d.collisions > 0) problems.push(`${d.collisions} bar-label collisions`);
+      if (d.bars !== Number(range)) problems.push(`rendered ${d.bars} bars, expected ${range}`);
+      r.check(`${String(w).padStart(4)}px ${range.padStart(2)}D: fits, cards clear, labels readable`,
+        problems.length === 0, problems.join('; '));
+
+      const expected = Number(range) <= 14 ? 'normal' : Number(range) <= 45 ? 'dense' : 'ultra';
+      r.eq(`${String(w).padStart(4)}px ${range.padStart(2)}D: density is "${expected}"`, d.density, expected);
+    }
+  }
+}
 
 await send('Emulation.clearDeviceMetricsOverride');
 
