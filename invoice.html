@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Invoices</title>
+  <meta name="description" content="Create and manage professional invoices offline.">
+  <meta name="theme-color" content="#1B5E20">
+  <link rel="icon" href="favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/styles.css">
+  <!-- Central config: identity, currency, tax and plan defaults. Classic script so brand-boot.js can read it synchronously. -->
+  <script src="js/app.config.js"></script>
+  <!-- Brand boot: applies the saved theme + brand palette before first paint (must stay render-blocking) -->
+  <script src="js/brand-boot.js"></script>
+</head>
+<body data-page="invoice">
+
+  <div class="app-shell">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+      <div class="sidebar-brand">
+        <div class="logo-box" id="sidebarLogo"><div class="logo-fallback" aria-hidden="true"></div></div>
+        <div>
+          <div class="brand-name" id="sidebarBrandName"></div>
+          <div class="brand-sub" id="sidebarBrandSub"></div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-label">Main</div>
+        <a class="nav-item" href="index.html" data-nav="dashboard">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+          <span>Dashboard</span>
+        </a>
+        <a class="nav-item active" href="invoice.html" data-nav="invoice">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <span>Invoices</span>
+        </a>
+        <a class="nav-item" href="customers.html" data-nav="customers">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Customers</span>
+        </a>
+        <a class="nav-item" href="products.html" data-nav="products">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          <span>Products</span>
+          <span class="nav-badge hidden" id="navStockBadge">0</span>
+        </a>
+        <div class="nav-label">Business</div>
+        <a class="nav-item" href="reports.html" data-nav="reports">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <span>Reports</span>
+        </a>
+        <a class="nav-item" href="settings.html" data-nav="settings">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Settings</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="install-card hidden" id="installCard">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <div class="ic-text"><strong>Install App</strong>Works offline on your device</div>
+          <button class="icon-btn" id="installBtn" aria-label="Install app" style="color:#fff">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+
+    <!-- Main -->
+    <div class="main">
+      <header class="topbar">
+        <button class="icon-btn" id="menuBtn" aria-label="Open navigation" style="display:none">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div>
+          <div class="page-title" id="pageTitle">Invoices</div>
+          <div class="page-sub" id="pageSub">Create, manage and export invoices</div>
+        </div>
+        <div class="topbar-spacer"></div>
+        <span class="badge badge-gray hide-mobile" id="offlineBadge" style="display:none"><span class="badge-dot"></span> Offline</span>
+        <select class="select" id="currencySelect" aria-label="Currency" style="width:auto; padding:8px 36px 8px 12px; font-weight:700"></select>
+        <button class="icon-btn" id="themeToggle" aria-label="Toggle dark mode" title="Toggle theme">
+          <svg id="themeIconM" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg id="themeIconS" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+      </header>
+
+      <main class="content" id="content">
+
+        <!-- ============ LIST VIEW ============ -->
+        <section id="listView">
+          <div class="flex flex-wrap items-center gap-3 mb-4">
+            <div class="search-bar flex-1" style="min-width:220px; max-width:420px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="search" class="input" id="invoiceSearch" placeholder="Search invoices, customers…" aria-label="Search invoices">
+            </div>
+            <div class="flex gap-2 flex-wrap">
+              <button class="chip active" data-filter="all">All</button>
+              <button class="chip" data-filter="draft">Draft</button>
+              <button class="chip" data-filter="unpaid">Unpaid</button>
+              <button class="chip" data-filter="partial">Partial</button>
+              <button class="chip" data-filter="paid">Paid</button>
+              <button class="chip" data-filter="overdue">Overdue</button>
+            </div>
+            <div class="ml-auto flex gap-2">
+              <button class="btn btn-outline btn-sm" id="exportCsvBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export CSV
+              </button>
+              <button class="btn btn-primary" id="newInvoiceBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                New Invoice
+              </button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Invoice</th><th>Customer</th><th>Issue Date</th><th>Due Date</th><th>Status</th><th class="num">Total</th><th class="num">Balance</th><th class="text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="invoiceTableBody">
+                  <tr><td colspan="8" class="text-center text-faint py-4">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ EDITOR VIEW ============ -->
+        <section id="editorView" class="hidden">
+          <div class="flex flex-wrap items-center gap-3 mb-4">
+            <button class="btn btn-ghost btn-sm" id="backToListBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+              Back
+            </button>
+            <h2 class="text-xl" id="editorTitle">New Invoice</h2>
+            <div class="ml-auto flex gap-2 flex-wrap">
+              <button class="btn btn-outline" id="saveDraftBtn">Save Draft</button>
+              <button class="btn btn-primary" id="saveInvoiceBtn">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                Save Invoice
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-12 gap-4">
+
+            <!-- Left: company + customer + items -->
+            <div class="col-span-8">
+              <div class="card mb-4">
+                <div class="card-header"><h3>Company & Customer</h3></div>
+                <div class="card-body">
+                  <div class="grid grid-cols-2 gap-4">
+                    <div class="field">
+                      <label for="invCompanyName">Business Name</label>
+                      <input type="text" class="input" id="invCompanyName" placeholder="Your business name">
+                    </div>
+                    <div class="field">
+                      <label for="invCustomer">Customer <span class="req">*</span></label>
+                      <select class="select" id="invCustomer" aria-label="Select customer">
+                        <option value="">— Select customer —</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label for="invCustomerName">Customer Name (editable)</label>
+                      <input type="text" class="input" id="invCustomerName" placeholder="Customer name">
+                    </div>
+                    <div class="field">
+                      <label for="invCustomerPhone">Customer Phone</label>
+                      <input type="tel" class="input" id="invCustomerPhone" placeholder="+255 7XX XXX XXX">
+                    </div>
+                    <div class="field">
+                      <label for="invCustomerEmail">Customer Email</label>
+                      <input type="email" class="input" id="invCustomerEmail" placeholder="customer@email.com">
+                    </div>
+                    <div class="field">
+                      <label for="invCustomerTin">Customer TIN</label>
+                      <input type="text" class="input" id="invCustomerTin" placeholder="TIN number">
+                    </div>
+                    <div class="field col-span-2">
+                      <label for="invCustomerAddress">Customer Address</label>
+                      <input type="text" class="input" id="invCustomerAddress" placeholder="Street, City">
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card mb-4">
+                <div class="card-header">
+                  <h3>Line Items</h3>
+                  <button class="btn btn-sm btn-outline ml-auto" id="addLineBtn">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Add Item
+                  </button>
+                </div>
+                <div class="card-body">
+                  <div class="table-wrap">
+                    <table class="table" id="itemsTable">
+                      <thead>
+                        <tr>
+                          <th style="min-width:180px">Product / Description</th>
+                          <th style="width:80px">Qty</th>
+                          <th style="width:110px">Unit Price</th>
+                          <th style="width:90px">Disc %</th>
+                          <th style="width:110px" class="num">Amount</th>
+                          <th style="width:50px"></th>
+                        </tr>
+                      </thead>
+                      <tbody id="itemsBody"></tbody>
+                    </table>
+                  </div>
+                  <div class="flex items-center gap-3 mt-3">
+                    <button class="btn btn-outline btn-sm" id="quickAddProductBtn">+ Quick add product</button>
+                    <span class="text-xs text-faint">Select a product to auto-fill price & tax</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-header"><h3>Notes & Footer</h3></div>
+                <div class="card-body">
+                  <div class="field">
+                    <label for="invNotes">Notes</label>
+                    <textarea class="textarea" id="invNotes" placeholder="Payment instructions, thank-you note…"></textarea>
+                  </div>
+                  <div class="field">
+                    <label for="invFooter">Footer Text</label>
+                    <input type="text" class="input" id="invFooter" placeholder="Thank you for your business!">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: details + totals -->
+            <div class="col-span-4">
+              <div class="card mb-4">
+                <div class="card-header"><h3>Invoice Details</h3></div>
+                <div class="card-body">
+                  <div class="field">
+                    <label for="invNumber">Invoice Number</label>
+                    <input type="text" class="input" id="invNumber" placeholder="INV-0001">
+                  </div>
+                  <div class="grid grid-cols-2 gap-3">
+                    <div class="field">
+                      <label for="invIssueDate">Issue Date</label>
+                      <input type="date" class="input" id="invIssueDate">
+                    </div>
+                    <div class="field">
+                      <label for="invDueDate">Due Date</label>
+                      <input type="date" class="input" id="invDueDate">
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label for="invTerms">Payment Terms</label>
+                    <select class="select" id="invTerms">
+                      <option value="Due on Receipt">Due on Receipt</option>
+                      <option value="Net 7">Net 7</option>
+                      <option value="Net 15">Net 15</option>
+                      <option value="Net 30" selected>Net 30</option>
+                      <option value="Net 60">Net 60</option>
+                      <option value="Custom">Custom…</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="invCurrency">Currency</label>
+                    <select class="select" id="invCurrency"></select>
+                  </div>
+                  <div class="field">
+                    <label for="invStatus">Status</label>
+                    <select class="select" id="invStatus">
+                      <option value="draft">Draft</option>
+                      <option value="unpaid">Unpaid</option>
+                      <option value="partial">Partially Paid</option>
+                      <option value="paid">Paid</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="invPaymentRef">Payment Reference</label>
+                    <input type="text" class="input" id="invPaymentRef" placeholder="Optional reference">
+                  </div>
+                </div>
+              </div>
+
+              <div class="card mb-4">
+                <div class="card-header"><h3>Totals</h3></div>
+                <div class="card-body">
+                  <div class="grid grid-cols-2 gap-3">
+                    <div class="field">
+                      <label for="invDiscountType">Discount Type</label>
+                      <select class="select" id="invDiscountType">
+                        <option value="fixed">Fixed</option>
+                        <option value="percentage">Percentage</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label for="invDiscount">Discount</label>
+                      <input type="number" class="input" id="invDiscount" min="0" step="0.01" value="0">
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-3">
+                    <div class="field">
+                      <label for="invTaxRate">Tax Rate (%)</label>
+                      <input type="number" class="input" id="invTaxRate" min="0" step="0.01" value="18">
+                    </div>
+                    <div class="field">
+                      <label for="invShipping">Shipping</label>
+                      <input type="number" class="input" id="invShipping" min="0" step="0.01" value="0">
+                    </div>
+                  </div>
+                  <label class="checkbox mb-3">
+                    <input type="checkbox" id="invTaxInclusive">
+                    <span>Tax included in prices</span>
+                  </label>
+
+                  <div class="border-top pt-3 mt-2">
+                    <div class="flex justify-between py-1 text-sm"><span class="text-muted">Subtotal</span><span class="font-semibold" id="calcSubtotal">—</span></div>
+                    <div class="flex justify-between py-1 text-sm"><span class="text-muted">Item Discount</span><span class="font-semibold" id="calcItemDiscount">—</span></div>
+                    <div class="flex justify-between py-1 text-sm"><span class="text-muted">Invoice Discount</span><span class="font-semibold" id="calcInvoiceDiscount">—</span></div>
+                    <div class="flex justify-between py-1 text-sm"><span class="text-muted">Tax</span><span class="font-semibold" id="calcTax">—</span></div>
+                    <div class="flex justify-between py-1 text-sm"><span class="text-muted">Shipping</span><span class="font-semibold" id="calcShipping">—</span></div>
+                    <div class="flex justify-between py-2 mt-1 border-top" style="border-top-width:2px">
+                      <span class="font-bold text-brand">Grand Total</span>
+                      <span class="font-black text-brand text-lg" id="calcGrandTotal">—</span>
+                    </div>
+                    <div class="flex justify-between py-1 text-sm"><span class="text-muted">Amount Paid</span><span class="font-semibold" id="calcPaid">—</span></div>
+                    <div class="flex justify-between py-1 text-sm"><span class="text-muted">Balance Due</span><span class="font-semibold text-danger" id="calcBalance">—</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-header"><h3>Actions</h3></div>
+                <div class="card-body flex flex-col gap-2">
+                  <button class="btn btn-primary btn-block" id="saveInvoiceBtn2">Save Invoice</button>
+                  <button class="btn btn-outline btn-block" id="previewBtn">Preview & Print</button>
+                  <button class="btn btn-outline btn-block" id="downloadPdfBtn">Download PDF</button>
+                  <button class="btn btn-success btn-block" id="recordPaymentBtn">Record Payment</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ PREVIEW VIEW ============ -->
+        <section id="previewView" class="hidden">
+          <div class="flex flex-wrap items-center gap-3 mb-4 no-print">
+            <button class="btn btn-ghost btn-sm" id="backToEditBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+              Edit
+            </button>
+            <h2 class="text-xl" id="previewTitle">Invoice Preview</h2>
+            <div class="ml-auto flex gap-2 flex-wrap">
+              <button class="btn btn-outline" id="printBtn">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                Print
+              </button>
+              <button class="btn btn-outline" id="shareWhatsappBtn" title="Send this invoice to the customer on WhatsApp">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.2-1.7-.9-2-1-.3-.1-.5-.2-.7.1-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.2-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6.1-.1.3-.4.5-.6.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5s-.7-1.6-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.2 2 3.1 4.9 4.3 2.4 1 2.9.8 3.4.7.5-.1 1.7-.7 1.9-1.4.2-.7.2-1.3.2-1.4-.1-.2-.2-.2-.5-.4z"/><path d="M12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.4 1.3 4.9L2 22l5.3-1.3c1.4.8 3 1.2 4.7 1.2 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3.1.8.8-3-.2-.3c-.8-1.3-1.3-2.9-1.3-4.4 0-4.6 3.7-8.3 8.3-8.3s8.3 3.7 8.3 8.3-3.6 8.3-8.2 8.3z"/></svg>
+                WhatsApp
+              </button>
+              <button class="btn btn-primary" id="downloadPdfBtn2">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download PDF
+              </button>
+            </div>
+          </div>
+          <div class="invoice-doc" id="previewDoc"></div>
+        </section>
+
+      </main>
+    </div>
+
+    <!-- Bottom nav (mobile) -->
+    <nav class="bottom-nav" aria-label="Mobile navigation">
+      <div class="bn-inner">
+        <a class="bn-item" href="index.html" data-nav="dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+          <span>Home</span>
+        </a>
+        <a class="bn-item active" href="invoice.html" data-nav="invoice">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <span>Invoices</span>
+        </a>
+        <a class="bn-item" href="customers.html" data-nav="customers">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          <span>Customers</span>
+        </a>
+        <a class="bn-item" href="reports.html" data-nav="reports">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <span>Reports</span>
+        </a>
+        <a class="bn-item" href="settings.html" data-nav="settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Settings</span>
+        </a>
+      </div>
+    </nav>
+
+    <button class="fab" id="fabNewInvoice" aria-label="Create new invoice">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+
+  </div>
+
+  <script src="libs/qrcode.min.js"></script>
+  <script src="libs/jspdf.umd.min.js"></script>
+  <script src="libs/jspdf.plugin.autotable.min.js"></script>
+  <script type="module" src="js/invoice.js"></script>
+</body>
+</html>

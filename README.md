@@ -1,0 +1,406 @@
+# Smart Invoice Pro — White-Label Offline Invoicing PWA
+
+A **production-ready, 100% offline Progressive Web App** for professional invoicing and business management, built for **Tanzanian SMEs** (and usable worldwide). Create invoices for products and services — including agricultural products such as cashew nuts — that look as professional as Zoho, QuickBooks, Odoo, FreshBooks, Wave and Xero, without any backend, any build step, or any internet connection.
+
+It is a **white-label template**: no product name, logo, colour or tagline is baked into the source. Everything a business owner needs to make the app *theirs* lives in one config file plus a Settings panel — no rebuild, no designer, no code.
+
+---
+
+## ✨ Features
+
+### Core
+- **Dashboard** — Today's sales, monthly sales, pending payments, paid invoices, revenue, outstanding balances, customer/product counts, quick actions, recent invoices, sales chart & status donut
+- **Invoice Generator** — Company header, bill-to/ship-to, invoice number, issue & due dates, payment terms, status, line items, discounts (per-item & whole-invoice, % or fixed), tax (VAT / custom / withholding / none), shipping, grand total, **amount in words**, QR code, signature & stamp block, notes & footer
+- **Customers** — Full database with name, phone, email, TIN, address, purchase history, outstanding balance, notes; search, filter, edit, delete, CSV export
+- **Products** — Name, description, SKU, barcode, category, unit, cost price, selling price, tax, discount, stock, low-stock alerts, image, status; search, filter, edit, delete, CSV export
+- **Reports** — Daily / weekly / monthly / yearly: revenue, profit, outstanding, top customers, top products, invoice status donut; Export PDF, Export CSV, Print
+
+### White-label configuration
+Every business can make the app *theirs* — no code, no rebuild, no designer.
+- **12 one-click presets** — Signature Green, Ocean, Midnight, Royal, Indigo, Teal, Emerald, Forest, Crimson, Rose, Sunset, Slate
+- **Custom brand colours** — pick any primary + accent with a colour picker or type a hex code (invalid input is rejected and reverted)
+- **4 sidebar treatments** — gradient, solid, deep, light
+- **Corner radius slider** (0–24px) that retunes the entire interface
+- **White-label identity** — set the app name and tagline; they flow into the sidebar, the browser tab, the logo initials and the live preview. Leave them blank to fall back to the business name.
+- **Live preview + contrast checker** — see the palette applied instantly, with WCAG AA/AAA ratings for brand text, button fills and sidebar navigation
+- **Automatic contrast correction** — mid-tone brand colours that would fail AA against both white and black text are nudged to the nearest passing shade, so a client can pick *any* colour and never end up with unreadable text
+- **Theme-aware** — the palette is re-derived for light and dark mode, so a brand colour works in both
+- **Flash-free** — applied before first paint by a render-blocking script, so there is no default-colour flicker on load
+- **Carries through everything** — PDF invoices, printed reports, QR codes and the app icons all use the business's colours
+
+### Subscription tiers & payments
+- **Three plans** (`free` / `pro` / `enterprise`) defined in config, with per-plan feature lists and limits
+- **Free tier cap** — 10 invoices per calendar month, counted from the invoice records themselves rather than a stored counter (a counter drifts on retry, restore or clock change)
+- **Upgrade modal** that fires the moment a limit is reached, showing exactly what the plan allows and what Pro adds
+- **Licence keys** — `SIP-<PLAN>-<YYYYMMDD>-<CHECKSUM>`, verified offline
+- **Payment gateway hooks** — AzamPay and Selcom stubbed with M-Pesa / Tigo Pesa / Airtel Money / HaloPesa method lists, sandbox mode, and a clear warning never to place live API secrets in a browser
+
+> **Honest by design.** The free-tier gate is a client-side business nudge, not a security boundary — anyone can edit local storage. The licence checksum catches typos, not forgery. Gate something that matters on a server.
+
+### Financial engine
+- Exact **2-decimal decimal arithmetic** using integer-based rounding — floating-point errors are eliminated
+- Formulas: `Subtotal = Σ(Qty × Unit Price)`; `Tax = Subtotal × TaxRate`; `Grand Total = Subtotal + Tax + Shipping − Discount`; `Balance = Grand Total − Amount Paid`
+- Partial payments automatically recompute status (unpaid / partial / paid)
+- **Currency engine**: TZS, USD, EUR, KES, GBP + unlimited custom currencies; editable offline exchange rates; instant currency switching
+- **Number-to-words** in English *and* Kiswahili (e.g. *"One Hundred Twenty Thousand Tanzanian Shillings Only"*)
+
+### Export, print & share
+- **Professional A4 PDF** (jsPDF + AutoTable): embedded logo, QR code, automatic pagination, branded header/footer, selectable text, print-ready
+- **Uniform layout across devices** — the PDF is built from fixed millimetre geometry, not screen pixels, so a 320px phone and a 4K desktop produce byte-identical output
+- **WhatsApp sharing** — one button on the invoice preview. Prefers the native share sheet with the PDF attached; falls back to a `wa.me` deep link that works on WhatsApp Web, Desktop and mobile; falls back again to copying the message. Phone numbers are normalised (`+255…`, `00255…`, `0712345678` and bare national numbers all work).
+- **Print** from a clean invoice view (no browser chrome)
+- **CSV export** for invoices, customers, products & reports
+- **QR Code** containing: invoice number, business name, grand total, currency, payment reference, website, WhatsApp
+
+### Mobile-first & responsive
+- **Mobile-first CSS** — the base stylesheet targets the phone; `min-width` blocks add capability as the viewport grows, so nothing is ever "un-done" by an override
+- **Works from 320px up** — no horizontal scrolling, no clipped figures, no crushed cards on any page at any width
+- **Phone chrome** — off-canvas sidebar drawer with backdrop, bottom tab bar, FAB that clears the bar
+- **Tablet chrome** — bottom bar retires, hamburger drawer takes over, 2–3 up grids
+- **Desktop chrome** — sidebar docks, 12-column grid with real spans, full navigation
+- **Charts adapt** — bar charts scroll rather than crush their labels; the donut legend wraps below the chart
+
+### Offline & PWA
+- **Service worker** precaches the entire app shell — works **100% offline** after the first visit
+- **Clean updates, no cache locks** — `sw.js` is never cached, `updateViaCache: 'none'` bypasses the HTTP cache for the worker itself, `skipWaiting()` + `clients.claim()` activate a new version immediately, and the page reloads exactly once on `controllerchange` (guarded by a flag, so there is no reload loop)
+- **Owned-cache sweep** — `activate` deletes only caches matching this app's prefixes, so two apps on the same origin cannot wipe each other
+- **manifest.json** with splash screen, app icons (192/512 + maskable), install button, home-screen shortcut, standalone full-screen mode
+- Works on **Windows, Linux, macOS, Android, iPhone, tablets** and desktop browsers
+
+### Storage & sync
+- **`storageService.js`** — one pluggable adapter interface over IndexedDB
+- **Local-first** — every read comes from the on-device cache, so the app is fully functional with no network
+- **Writes are local-first, then queued** — `pushPending()` is the single point where data leaves the device
+- **Adapter stubs** for Supabase, Firebase and a generic REST backend, each with a documented contract, so a backend can be dropped in without touching a single feature module
+- **Migration-safe** — renaming the database would have stranded existing users' invoices, so first boot detects the old database and old `localStorage` prefix and migrates them
+
+### Security & accessibility
+- **XSS-safe**: all output is HTML-escaped; all input sanitized
+- **IndexedDB** used safely with transactional, promise-based wrappers
+- WCAG AA-friendly: every form control has an accessible name, keyboard navigation throughout, ARIA radio-group semantics on the brand pickers, contrast-checked palettes, `prefers-reduced-motion` support
+- **Responsive down to 320px** — no page ever scrolls sideways, and no figure, label or card is ever clipped or crushed (verified across 10 widths × 6 pages)
+
+---
+
+## 📁 Project structure
+
+```
+invoice-generator/
+├── index.html              # Dashboard
+├── invoice.html            # Invoice list + editor + preview
+├── customers.html          # Customer management
+├── products.html           # Product & inventory management
+├── reports.html            # Business reports
+├── settings.html           # Business profile, brand, plans, data tools
+├── css/
+│   └── styles.css          # Complete design system (utilities, dark mode, mobile-first)
+├── js/
+│   ├── app.config.js       # ★ ALL defaults: identity, plans, gateways, sync, PDF  (classic script)
+│   ├── config.js           # ES-module surface over app.config.js (resilient)
+│   ├── brand-boot.js       # Pre-paint brand + identity applier (classic script, no flash)
+│   ├── brand.js            # Brand engine (colour math, presets, palettes, contrast)
+│   ├── storageService.js   # ★ Pluggable storage: local / Supabase / Firebase / REST
+│   ├── licenseService.js   # ★ Plans, quota, licence keys, upgrade modal
+│   ├── share.js            # ★ WhatsApp deep links, native share, phone normalisation
+│   ├── db.js               # IndexedDB layer + legacy-database migration
+│   ├── shell.js            # Shared shell (theme, nav, PWA, identity, currency)
+│   ├── app.js              # Dashboard logic
+│   ├── invoice.js          # Invoice module
+│   ├── customer.js         # Customer module
+│   ├── product.js          # Product module
+│   ├── report.js           # Report module
+│   ├── settings.js         # Settings module (brand, subscription, gateways)
+│   ├── currency.js         # Currency + number-to-words engine
+│   ├── calculations.js     # Exact financial math engine
+│   ├── export.js           # PDF / print / QR / CSV engine
+│   └── utils.js            # Shared utilities (sanitize, escape, modal, toast)
+├── assets/
+│   ├── logo.png            # Neutral default mark (replaceable in Settings)
+│   └── icons/              # PWA icons (192, 512, maskable, apple-touch, favicon)
+├── libs/                   # Vendored libraries (offline)
+│   ├── jspdf.umd.min.js
+│   ├── jspdf.plugin.autotable.min.js
+│   └── qrcode.min.js
+├── scripts/
+│   ├── serve.js            # Zero-dependency static server
+│   ├── e2e.js              # E2E launcher (boots server + browser)
+│   ├── generate-icons.js   # Icon generator (Node built-ins only)
+│   ├── test-core.js        # Financial engine
+│   ├── test-utils.js       # Utilities
+│   ├── test-brand.js       # Theming engine, contrast, brand-boot parity
+│   ├── test-config.js      # Config shape, storage keys, white-label guard
+│   ├── test-license.js     # Plans, quota, licence keys, phone/message helpers
+│   ├── test-assets.js      # Icon decoding, alpha coverage, palette
+│   ├── test-markup.js      # Markup / CSS / SW / a11y contracts
+│   ├── test-e2e.js         # Browser end-to-end (CDP)
+│   ├── test-a11y.js        # Keyboard + screen-reader (CDP)
+│   ├── test-polish.js      # Interaction polish + reduced-motion (CDP)
+│   ├── test-responsive.js  # Mobile-first sweep across pages × widths (CDP)
+│   ├── screenshots.js      # Brand showcase screenshots
+│   └── lib/cdp.js          # Shared DevTools Protocol client
+├── manifest.json           # PWA manifest
+├── sw.js                   # Service worker (offline cache)
+└── README.md
+```
+
+---
+
+## 🚀 Getting started
+
+### Option A — No install needed
+
+Open **`index.html`** directly in any modern browser (Chrome, Edge, Firefox, Safari). All data is stored locally in IndexedDB.
+
+> ⚠️ For the **best PWA experience (install + offline)**, serve the folder over HTTP — see Option B. Service workers require a server context.
+
+### Option B — Run locally with a static server
+
+```bash
+# Zero-dependency server (no install required)
+npm run serve
+
+# or specify a port
+node scripts/serve.js 3000
+```
+
+Then open `http://127.0.0.1:8080`.
+
+> The bundled server uses only Node built-ins, so it works offline and never needs a network install. `sw.js` is served `no-cache` so clients always pick up new versions.
+
+### Install as an app
+
+1. Open the app in Chrome / Edge / Android Chrome.
+2. Click the **Install App** card in the sidebar (or the browser's install icon).
+3. The app installs as a standalone, full-screen, offline-first app on desktop and mobile.
+
+> On Android, Chrome will prompt "Add to Home screen". On iOS Safari, use **Share → Add to Home Screen**.
+
+---
+
+## 🧰 How to use
+
+1. **Settings** → enter your business info, upload your logo, set your currency, tax rate and invoice numbering.
+2. **Products** → add the products/services you sell (prices, tax, stock).
+3. **Customers** → add your customers.
+4. **Invoices** → click **New Invoice**, select a customer, add line items, adjust discounts/tax/shipping, save, preview, print, download the PDF or send it on WhatsApp.
+5. **Record Payment** → against any saved invoice via the editor or the invoice row (M-Pesa, Bank, Cash, etc.).
+6. **Reports** → switch Daily/Weekly/Monthly/Yearly, then Export PDF/CSV or Print.
+7. **Settings → Backup Data** → download a JSON backup regularly. **Restore Backup** brings it back.
+
+### Keyboard shortcuts
+- `Ctrl/Cmd + N` → New Invoice
+- `←` `→` → move between brand presets / sidebar styles once focused
+
+---
+
+## 🎨 White-labelling the app
+
+### In the app (no code)
+
+Everything lives in **Settings → Brand & Appearance** and saves automatically.
+
+1. **Pick a starting point** — click any of the 12 presets, or set **Primary** and **Accent** yourself with the pickers (or type a hex code).
+2. **Choose a sidebar style** — gradient, solid, deep or light.
+3. **Set the corner radius** — drag from sharp (0px) to soft (24px).
+4. **Rename the app** — set **App Name** and **App Tagline**; leave them blank to fall back to your business name.
+5. **Check the contrast readout** — four WCAG ratings update live.
+6. **Reset to Default** restores the shipped palette at any time.
+
+Your palette is stored in IndexedDB and mirrored to `localStorage`, and a small pre-paint script applies it before the first frame — so the app never flashes the default colours on load. Invoices, PDFs, printed reports and QR codes all inherit the brand automatically.
+
+### In the source (rebranding the template for a client)
+
+Edit **`js/app.config.js`** — it is the single source of every default a fresh install starts from. Nothing else needs to change.
+
+```js
+appName: 'Acme Invoicing',                    // shown in the sidebar and <title>
+shortName: 'Acme',                            // home-screen label
+tagline: 'Business Invoicing & Management',
+slug: 'acme-invoicing',                       // PWA id, cache prefix, backup filenames
+defaultCurrency: 'TZS',
+defaultTaxRate: 18,
+allowWhiteLabel: true,                        // false hides and locks the brand panel
+storagePrefix: 'acme_',                       // localStorage key prefix
+dbName: 'acme-invoicing',
+legacyDbNames: ['crown-invoice-pro'],         // databases to migrate FROM on first boot
+legacyStoragePrefixes: ['crown_'],            // key prefixes to migrate away from
+plans: { /* free / pro / enterprise */ },
+paymentGateways: [ /* azampay, selcom */ ],
+whatsapp: { countryCode: '255', defaultMessage: '…' },
+pdf: { pageSize: 'a4', orientation: 'portrait', unit: 'mm', margin: 14, logoSize: 22 },
+```
+
+Then:
+
+```bash
+# Rebrand the app icons for the client's colours/mark
+node scripts/generate-icons.js     # or edit drawMarkIcon() first
+
+# Prove no vendor branding survived
+npm run test:config
+```
+
+**Why a classic script and not JSON?** `brand-boot.js` has to run *before first paint* to avoid a colour flash, and a `fetch()` of a JSON file is asynchronous — and blocked entirely under `file://`. A classic script is synchronous, so the defaults are available immediately. `js/config.js` is the ES-module surface over it, and it is deliberately resilient: if `app.config.js` is missing, modules fall back to neutral defaults instead of white-screening an offline app. `test-config.js` asserts the script tag is present and ordered correctly on every page.
+
+**Precedence:** anything a business owner saves in Settings always wins. `app.config.js` only decides what a *fresh* install looks like.
+
+**What is still hardcoded, and why:** the old database name and `localStorage` prefix survive as `legacyDbNames` / `legacyStoragePrefixes`, and the old preset id survives in `PRESET_ALIASES`. These are migration aliases, not branding — removing them would strand every existing user's invoices and theme. `test-config.js` enforces that these are the *only* places the old name may appear.
+
+---
+
+## 🔌 Storage & cloud sync
+
+`js/storageService.js` is the single storage interface for the whole app. Feature modules never touch IndexedDB directly.
+
+```js
+import { initStorage, getInvoices, saveInvoice, configure } from './storageService.js';
+
+await initStorage();                       // local-only by default
+await saveInvoice(invoice);                // writes to the local cache, then queues
+await configure({ adapter: 'supabase', endpoint, apiKey });
+```
+
+| Adapter | Status | Notes |
+|---|---|---|
+| `local` | **Production** | IndexedDB via `db.js`. Works offline, forever. The default. |
+| `rest` | Stub, contract documented | `GET/PUT/POST/DELETE {endpoint}/{store}[/{key}]`, `GET/PATCH {endpoint}/settings` |
+| `supabase` | Stub | Row-per-record mirror of the same contract |
+| `firebase` | Stub | Collection-per-store mirror |
+
+**Design rules**
+
+- Reads always come from the local cache, so the UI never waits on a network.
+- Writes are local-first, then appended to a `syncQueue` store.
+- `pushPending()` is the only function that talks to a remote, which keeps conflict handling in one place.
+- `configure()` falls back to `local` and emits an `adapter-fallback` event if a cloud adapter throws — a bad endpoint must not brick the app.
+
+---
+
+## 💳 Plans & payment gateways
+
+Plans, limits and gateway metadata all live in `js/app.config.js`; the behaviour lives in `js/licenseService.js`.
+
+- **Free** — 10 invoices/month, 25 customers, 25 products
+- **Pro** — unlimited invoices, brand customisation, no watermark
+- **Enterprise** — multi-user, multi-branch, cloud sync, API access
+
+The quota is **derived**, not stored: `evaluateQuota()` counts invoice records in the current calendar month. A stored counter drifts the moment a save is retried, a backup is restored, or the device clock moves.
+
+Payment gateways (**AzamPay**, **Selcom**) are declared with their mobile-money method lists, sandbox mode and docs links, and rendered in **Settings → Payments**. They ship disabled — wire them to a server-side endpoint before enabling.
+
+> ⚠️ **Never put live gateway API secrets in this app.** Everything here runs in the browser, where any user can read it. Gateway credentials belong on a server that your app calls.
+
+---
+
+## 📱 Responsive & mobile-first
+
+The stylesheet is written **mobile-first**: the base layer is the phone layout, and every larger viewport is served by a `min-width` block that *adds* capability. There are no `max-width` overrides that un-do desktop work, so the two layers can never fight each other.
+
+| Breakpoint | Layout |
+|---|---|
+| `< 481px` | phone — single column, off-canvas sidebar, bottom tab bar |
+| `≥ 481px` | large phone — 2-up stat grids, roomier padding |
+| `≥ 769px` | tablet — bottom bar retires, hamburger drawer, 2–3 up grids |
+| `≥ 1024px` | desktop — sidebar docks, 12-column grid with real spans |
+| `≥ 1280px` | wide desktop — 4- and 6-up grids (the sidebar costs 264px, so they wait) |
+| `≥ 1441px` | large desktop — wider gutters |
+
+Three rules make it hold:
+
+1. **Every grid collapses at base.** `.grid-cols-12` and friends resolve to a single column until a `min-width` block turns them on, and every `.col-span-N` is `grid-column: auto` until then. Leaving a 12-column grid un-collapsed was the worst bug this app shipped: each child carries `col-span-N`, which resolved to `span 1` of 12 and crushed a chart card to **9px** on a 320px phone.
+2. **Every flexible track is `minmax(0, 1fr)`.** Bare `1fr` means `minmax(auto, 1fr)`, and that *auto* minimum is min-content — so one wide child (a 640px table) forces the track, and the page, wider than the screen.
+3. **Flex children get `min-width: 0`.** Without it a toolbar's button cluster refuses to shrink below the sum of its buttons and pushes the page sideways.
+
+Column counts ramp with the width actually available, not just the viewport: docking the sidebar removes 264px, so the 4-up stat grid waits until 1280px rather than squeezing `TZS 1,662,930.00` below its own text width.
+
+Verified by `scripts/test-responsive.js`, which sweeps **10 widths × 6 pages** and fails on page overflow, crushed grids, clipped text and chart-label collisions — plus the static contract in `test-markup.js` that catches an un-collapsed grid without needing a browser.
+
+---
+
+## 🧪 Testing
+
+Everything runs on Node built-ins plus a headless Chrome — no test framework to install.
+
+```bash
+npm test          # 573 static checks: engine, utils, theming, config, plans, icons, markup
+npm run test:e2e  # 356 browser checks: journeys, a11y, polish, responsive sweep, platform
+npm run test:all  # both — 929 checks
+```
+
+| Command | What it covers |
+|---|---|
+| `npm test` | Financial math, XSS escaping, colour math, brand-boot parity across 242 brand configurations, WCAG AA across all presets, config shape, storage-key semantics, white-label guard, quota arithmetic, licence keys, phone normalisation, icon decoding, CSS/markup contracts, the mobile-first grid contract, service-worker precache integrity, accessible names |
+| `npm run test:e2e` | Every page loads clean; brand apply/persist/reset; flash-free first paint; dark mode; customer & product CRUD; invoice creation with verified totals; the free-tier cap and upgrade modal; reports; PDF/CSV/QR export (asserts the `%PDF` magic bytes); WhatsApp link construction; backup/restore; currency switching; genuine offline mode |
+| `npm run test:a11y` | Radio-group semantics, roving tabindex, arrow-key navigation (including wrap-around), accessible names for every control, keyboard reachability with a custom palette |
+| `npm run test:polish` | Button shine sweep and hover lift, ripple creation + its stacking order, the loading-state contract, recessed switch, custom checkbox, tooltips, and that `prefers-reduced-motion` genuinely neutralises the motion |
+| `npm run test:responsive` | Sweeps 10 widths (320→1600px) × 6 pages, failing on page overflow, crushed grids, clipped text and chart-label collisions — then asserts the chrome contract (bottom nav → hamburger drawer → docked sidebar) |
+| `npm run test:platform` | Storage adapter contract (including that a failed cloud switch falls back to local), the free-tier gate and upgrade modal, licence activation/persistence/reset, payment-gateway rendering, the WhatsApp share path and its popup-blocked fallback, runtime white-label identity, and the service-worker offline cache |
+| `npm run test:config` | `app.config.js` shape, storage-key prefixing and legacy fallback, plan/gateway declarations, script load order, and the white-label guard |
+| `npm run test:license` | Month keys, quota evaluation (free/pro/unknown plans), licence-key round-trip and rejection, phone normalisation, message templating, `wa.me` URLs |
+| `npm run test:assets` | Decodes every generated PNG and asserts dimensions, alpha coverage, corner rounding, full-bleed maskable variants and palette — this is the guard that caught every icon shipping fully transparent |
+| `npm run test:unit` / `test:brand` / `test:markup` | Individual suites |
+| `npm run shots` | Renders the brand showcase screenshots into `.workbuddy-ai/screenshots/` |
+| `npm run test:e2e -- --suite=<file>` | Run any single script from `scripts/` against a freshly booted server + browser |
+
+The E2E launcher finds Chrome or Edge automatically (override with `E2E_BROWSER`), starts its own server and browser on free ports, and tears them down afterwards. Use `npm run test:e2e -- --headed` to watch it run.
+
+---
+
+## 🔢 Calculation rules (never fail)
+
+| Item | Formula |
+|---|---|
+| Line total | `Qty × Unit Price` |
+| Item discount | `Line total × (Disc % / 100)` or fixed |
+| Subtotal | `Σ (Line total − Item discount)` |
+| Invoice discount | `Subtotal × (Disc % / 100)` or fixed |
+| Tax | `(Subtotal − Invoice discount) × TaxRate%` |
+| Grand total | `Subtotal − Invoice discount + Tax + Shipping` |
+| Balance | `Grand total − Amount paid` |
+| Status | `paid` if balance ≤ 0; `partial` if paid > 0; else `unpaid` |
+
+All values are rounded to exactly 2 decimal places using safe integer math (`Math.round((n + ε) × 100) / 100`).
+
+---
+
+## 🌍 Currencies
+
+Defaults included: **TZS, USD, EUR, KES, GBP**. Exchange rates are editable and stored offline. You can add unlimited custom currencies. Formatting uses thousands separators and 2 decimals, e.g. `TZS 120,000.00` and `USD 450.00`. Switch the active display currency from the top bar instantly.
+
+---
+
+## 🔒 Security notes
+
+- HTML **escaped on output** everywhere (XSS-safe)
+- All inputs sanitized (strip control chars, trim, max lengths)
+- No `eval()`, no inline JavaScript, no third-party network requests at runtime
+- IndexedDB used via transactional wrappers with full error handling
+- **No secrets in the client.** Gateway credentials, licence issuance and any real access control belong on a server. The client-side plan gate is a nudge, not a lock.
+
+---
+
+## 🔮 Future expansion (architecture ready)
+
+The modular codebase is designed to grow without rewrites:
+
+- Inventory management, purchase orders, quotations, delivery notes, expense tracking, payroll
+- Multi-user accounts, multi-branch, real cloud sync (implement the `SupabaseAdapter` / `FirebaseAdapter` contract — the `syncQueue` store and `pushPending()` entry point already exist)
+- Barcode scanning, POS integration, Tanzania EFD receipt integration, AI sales analytics
+
+---
+
+## 🛠 Tech stack
+
+HTML5 · CSS custom properties (design-token system) · Vanilla JavaScript (ES2023 modules) · IndexedDB · Service Workers · LocalStorage (theme + brand cache) · jsPDF · AutoTable · QRCode.js
+
+No frameworks. No backend. No build step. No internet needed.
+
+**How theming works:** `brand.js` derives a full design-token palette (brand, brand-dark/darker/light/soft, contrast-safe ink, accent, and 10 sidebar tokens) from just a primary colour, an accent colour, a sidebar style and a radius. It uses HSL maths plus WCAG relative-luminance contrast correction, then writes the result as inline custom properties on `<html>` — which outranks both `:root` and `[data-theme="dark"]`, so the brand wins without `!important`. A tiny duplicated copy in `brand-boot.js` runs as a render-blocking classic script so the palette *and* the app name are in place before the first paint; `test-brand.js` asserts the two implementations produce byte-identical palettes for 242 brand configurations.
+
+**How the app name is applied:** every page ships an empty `#sidebarBrandName`, `#sidebarBrandSub` and logo-initials slot, and a `<title>` with no product name. `brand-boot.js` fills them from the saved brand (falling back to `app.config.js`) before first paint; `shell.js` re-applies them once the business name loads from IndexedDB. `test-config.js` asserts the slots stay empty in the markup, so no name can quietly get baked back in.
+
+---
+
+## 📄 License
+
+Free for personal and business use.

@@ -1,0 +1,24 @@
+# Line endings are pinned so a Windows checkout and a Linux CI get byte-identical
+# files. Without this, Git's autocrlf converts the working copy on Windows and
+# every pull shows the whole file as modified.
+* text=auto eol=lf
+
+# Binary assets — never touch these.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+
+# Vendored libraries are minified third-party code. Marking them as generated
+# keeps them out of diffs and language stats, and signals "do not edit by hand".
+libs/*.js linguist-vendored linguist-generated=true
+
+# Keep the lockfile out of review noise.
+package-lock.json -diff linguist-generated=true
