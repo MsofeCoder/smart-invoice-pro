@@ -20,7 +20,7 @@
  *
  * Bump CACHE_NAME on every deploy — it is what makes clients pick up new files.
  */
-const CACHE_NAME = 'smart-invoice-pro-v9';
+const CACHE_NAME = 'smart-invoice-pro-v13';
 
 /** Cache prefixes owned by this app, used to sweep up after a rename. */
 const OWNED_PREFIXES = ['smart-invoice-pro-', 'crown-invoice-pro-'];
@@ -37,6 +37,7 @@ const APP_SHELL = [
   './js/app.config.js',
   './js/config.js',
   './js/app.js',
+  './js/charts.js',
   './js/invoice.js',
   './js/customer.js',
   './js/product.js',
@@ -57,12 +58,23 @@ const APP_SHELL = [
   './libs/jspdf.plugin.autotable.min.js',
   './libs/qrcode.min.js',
   './manifest.json',
+  './favicon.svg',
+  './favicon.ico',
   './favicon.png',
+  './assets/fonts/inter-latin.woff2',
+  './assets/fonts/plus-jakarta-sans-latin.woff2',
+  './assets/brand/logo-mark.svg',
+  './assets/brand/logo-horizontal.svg',
+  './assets/brand/logo-horizontal-dark.svg',
+  './assets/brand/logo-mono.svg',
+  './assets/brand/favicon.svg',
   './assets/logo.png',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
   './assets/icons/icon-maskable-192.png',
   './assets/icons/icon-maskable-512.png',
+  './assets/icons/favicon-32.png',
+  './assets/icons/favicon.ico',
   './assets/icons/apple-touch-icon.png',
 ];
 
