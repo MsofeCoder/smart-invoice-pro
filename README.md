@@ -497,8 +497,8 @@ Everything runs on Node built-ins plus a headless Chrome — no test framework t
 
 ```bash
 npm test          # 708 static checks: engine, utils, theming, config, plans, icons, markup
-npm run test:e2e  # 478 browser checks: journeys, a11y, polish, responsive sweep, platform, charts
-npm run test:all  # both — 1186 checks
+npm run test:e2e  # 492 browser checks: journeys, a11y, polish, responsive sweep, platform, charts, preview
+npm run test:all  # both — 1200 checks
 ```
 
 | Command | What it covers |
@@ -514,6 +514,7 @@ npm run test:all  # both — 1186 checks
 | `npm run test:license` | Month keys, quota evaluation (free/pro/unknown plans), licence-key round-trip and rejection, phone normalisation, message templating, `wa.me` URLs |
 | `npm run test:assets` | Decodes every generated PNG and asserts dimensions, alpha coverage, corner rounding, full-bleed maskable variants and palette, the maskable safe zone (the mark must stay inside the 80% circle), the five brand SVG sources, and the multi-resolution `favicon.ico` — this is the guard that caught every icon shipping fully transparent |
 | `npm run test:unit` / `test:brand` / `test:markup` | Individual suites (`test:markup` owns the mobile-first grid contract, the dark-theme token contract, the PWA head wiring on all 6 pages, the self-hosted-font/offline contract, the identity ramp, and the service-worker precache list) |
+| `npm run test:preview` | The preview panel's actions and the PDF's pagination. **Download PDF / Print / WhatsApp must work when the preview was opened from the list's eye icon** — they act on the invoice being shown, not on the editor form (which is untouched on that path, so re-collecting from it produced a nameless invoice and the click was a silent no-op); Print must render the real document; Edit must load *that* invoice into the form, while a preview opened **from** the editor must not throw unsaved edits away; and a normal invoice must stay on **one page** — a 5- and a 6-line invoice with a full letterhead, four payment lines, notes and logo/signature/stamp/QR artwork, while a 16-line invoice still paginates |
 | `npm run test:live` | **Post-deploy check against the real Pages URL.** Charts render and animate in production, the service worker is on the expected cache version and reaps old caches, every asset resolves from the `/smart-invoice-pro/` sub-path (no 404s), the theme toggle works, the app still loads with the network cut, and the console is clean. Needs the network and a finished Pages build, so it is deliberately not part of `test:e2e`. Pass a URL to point it somewhere else: `npm run test:live -- https://example.com/` |
 | `npm run shots` | Renders the brand showcase screenshots into `.workbuddy-ai/screenshots/` |
 | `npm run test:e2e -- --suite=<file>` | Run any single script from `scripts/` against a freshly booted server + browser |
