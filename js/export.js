@@ -205,7 +205,7 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
       let h = logoSize;
       if (ratio > 1) { h = logoSize / ratio; } else { w = logoSize * ratio; }
       doc.addImage(logoData, logoType, margin, brandY, w, h);
-      brandY += h + 5;
+      brandY += h + 4;
     } catch (err) {
       // Ship the invoice without a logo rather than failing the export, but
       // say so — a logo that silently vanishes is hard to diagnose.
@@ -227,9 +227,9 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
   if (company.regNumber) companyLines.push(`Reg: ${company.regNumber}`);
   const companyLinesShown = companyLines.slice(0, 7);
   companyLinesShown.forEach((line, i) => {
-    doc.text(String(line), margin, brandY + i * 4.2);
+    doc.text(String(line), margin, brandY + i * 3.9);
   });
-  const brandBottom = brandY + companyLinesShown.length * 4.2;
+  const brandBottom = brandY + companyLinesShown.length * 3.9;
 
   /* ---- Invoice title + meta (right side) ---- */
   const rightX = pageW - margin;
@@ -247,15 +247,20 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
     [t('Payment Terms', 'Masharti ya Malipo'), invoice.paymentTerms || ''],
     [t('Status', 'Hali'), t(statusLabel(invoice.status), statusLabelSw(invoice.status))],
   ];
-  let metaY = y + 14;
+  /* One row per entry — label left, value right — which is exactly how the
+     preview renders `.doc-meta` (a two-column grid). Drawing the label above
+     the value instead made this block 42 mm tall on its own and was the single
+     biggest reason the signature band could not fit on page 1. */
+  const metaLabelX = pageW - margin - 78;
+  let metaY = y + 15;
   meta.forEach(([k, v]) => {
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...INK_FAINT);
-    doc.text(String(k), rightX, metaY, { align: 'right' });
+    doc.text(String(k), metaLabelX, metaY);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...INK);
-    doc.text(String(v), rightX, metaY + 4.2, { align: 'right' });
-    metaY += 8.4;
+    doc.text(String(v), rightX, metaY, { align: 'right' });
+    metaY += 5.6;
   });
 
   y = Math.max(brandBottom, metaY) + 8;
@@ -271,7 +276,9 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
   const partyPadX = 6;
   const partyTextW = colW - partyPadX * 2;
   const NAME_LINE_H = 4.6;
-  const DETAIL_LINE_H = 4.0;
+  const DETAIL_LINE_H = 3.8;
+  /* Distance from the top of the box down to the first name baseline. */
+  const PARTY_TOP = 10.5;
 
   const billDetails = [];
   if (invoice.customerAddress) billDetails.push(invoice.customerAddress);
@@ -292,13 +299,13 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
   const billDetailLines = wrapParty(billDetails);
   const shipDetailLines = wrapParty(shipDetails);
 
-  // 12 mm to the party name, one line of leading before the details, 4 mm of
-  // bottom padding — measured from the top of the box.
+  // PARTY_TOP down to the name, one line of leading before the details, 3 mm
+  // of bottom padding — measured from the top of the box.
   const partyHeight = (nameLines, detailLines) =>
-    12 + nameLines.length * NAME_LINE_H
+    PARTY_TOP + nameLines.length * NAME_LINE_H
     + (detailLines.length ? 1 : 0)
     + detailLines.length * DETAIL_LINE_H
-    + 4;
+    + 3;
   const boxH = Math.max(26, partyHeight(billNameLines, billDetailLines), partyHeight(shipNameLines, shipDetailLines));
 
   doc.setFillColor(...SURFACE_2);
@@ -310,11 +317,11 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.setTextColor(...BRAND_INK);
-    doc.text(title, x + partyPadX, y + 7);
+    doc.text(title, x + partyPadX, y + 6);
 
     doc.setFontSize(10);
     doc.setTextColor(...INK);
-    let ty = y + 12;
+    let ty = y + PARTY_TOP;
     nameLines.forEach((line) => { doc.text(line, x + partyPadX, ty); ty += NAME_LINE_H; });
 
     if (!detailLines.length) return;
@@ -355,7 +362,7 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
       textColor: INK,
       lineColor: BORDER,
       lineWidth: 0.2,
-      cellPadding: 2.5,
+      cellPadding: 2,
       valign: 'middle',
     },
     headStyles: {
@@ -383,9 +390,67 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
 
   y = doc.lastAutoTable.finalY + 8;
 
-  /* ---- Totals block ---- */
-  const totalsX = pageW - margin - 78;
+  /* ---- Summary: totals on the right, everything else on the left ----
+     This mirrors the preview, which lays the same material out as a `.flex-1`
+     column (amount in words, then notes) beside a right-hand `.totals` block.
+     The PDF used to STACK these instead — totals, then words, then the balance
+     line, then notes, then the payment details — which for a five-line invoice
+     cost ~99 mm where the side-by-side form costs ~57 mm. That 42 mm was the
+     whole reason the signature band was being pushed onto a second page: the
+     preview showed one page and the PDF delivered two. */
   const totalsW = 78;
+  const totalsX = pageW - margin - totalsW;
+  const summaryGap = 10;
+  const leftW = contentW - totalsW - summaryGap;
+  const summaryTop = y;
+
+  /* ---------- Left column ---------- */
+  let leftY = summaryTop;
+
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...INK_SOFT);
+  const words = lang === 'sw'
+    ? amountToWordsSwahili(invoice.grandTotal ?? 0, currency)
+    : amountToWords(invoice.grandTotal ?? 0, currency);
+  const wordsLabel = t('Amount in Words:', 'Kiasi kwa Maneno:');
+  const splitWords = doc.splitTextToSize(`${wordsLabel} ${words}`, leftW);
+  doc.text(splitWords, margin, leftY);
+  leftY += splitWords.length * 4.2 + 5;
+
+  if (invoice.notes) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...BRAND_INK);
+    doc.text(t('NOTES', 'MAELEZO'), margin, leftY);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...INK_SOFT);
+    const notes = doc.splitTextToSize(String(invoice.notes), leftW);
+    doc.text(notes, margin, leftY + 5);
+    leftY += notes.length * 4.2 + 7;
+  }
+
+  const payDetails = [];
+  if (company.bankName) payDetails.push(`${t('Bank', 'Benki')}: ${company.bankName}`);
+  if (company.bankAccountName) payDetails.push(`${t('Account Name', 'Jina la Akaunti')}: ${company.bankAccountName}`);
+  if (company.bankAccountNumber) payDetails.push(`${t('Account No', 'Namba ya Akaunti')}: ${company.bankAccountNumber}`);
+  if (company.mobileMoney) payDetails.push(`${t('Mobile Money', 'Fedha za Simu')}: ${company.mobileMoney}`);
+  const payLines = payDetails.slice(0, 4).flatMap((line) => doc.splitTextToSize(String(line), leftW));
+  if (payLines.length) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...BRAND_INK);
+    doc.text(t('PAYMENT DETAILS', 'Maelezo ya MALIPO'), margin, leftY);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...INK_SOFT);
+    payLines.forEach((line, i) => { doc.text(String(line), margin, leftY + 5 + i * 3.9); });
+    leftY += payLines.length * 3.9 + 6;
+  }
+
+  /* ---------- Right column: totals ---------- */
+  let totalsY = summaryTop;
   const totals = [
     [t('Subtotal', 'Jumla Ndogo'), invoice.subtotal ?? 0],
     [t('Item Discount', 'Punguzo la Bidhaa'), -(invoice.itemDiscount ?? 0)],
@@ -398,79 +463,39 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
   totals.forEach(([label, amount]) => {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...INK_SOFT);
-    doc.text(String(label), totalsX, y);
+    doc.text(String(label), totalsX, totalsY);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...INK);
-    doc.text(formatMoney(amount, currency), totalsX + totalsW, y, { align: 'right' });
-    y += 6;
+    doc.text(formatMoney(amount, currency), totalsX + totalsW, totalsY, { align: 'right' });
+    totalsY += 6;
   });
 
   // Grand total band
   doc.setFillColor(...BRAND);
-  doc.roundedRect(totalsX - 4, y - 1, totalsW + 8, 9, 2, 2, 'F');
+  doc.roundedRect(totalsX - 4, totalsY - 1, totalsW + 8, 9, 2, 2, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(...BRAND_CONTRAST);
-  doc.text(t('GRAND TOTAL', 'JUMLA KUU'), totalsX, y + 5.5);
-  doc.text(formatMoney(invoice.grandTotal ?? 0, currency), totalsX + totalsW, y + 5.5, { align: 'right' });
-  y += 16;
+  doc.text(t('GRAND TOTAL', 'JUMLA KUU'), totalsX, totalsY + 5.5);
+  doc.text(formatMoney(invoice.grandTotal ?? 0, currency), totalsX + totalsW, totalsY + 5.5, { align: 'right' });
+  totalsY += 11;
 
-  /* ---- Amount in words ---- */
-  doc.setFont('helvetica', 'italic');
+  // Amount paid and balance sit inside the totals block, as they do in the
+  // preview — they are part of the same money summary, not a separate line.
   doc.setFontSize(8.5);
-  doc.setTextColor(...INK_SOFT);
-  const words = lang === 'sw'
-    ? amountToWordsSwahili(invoice.grandTotal ?? 0, currency)
-    : amountToWords(invoice.grandTotal ?? 0, currency);
-  const wordsLabel = t('Amount in Words:', 'Kiasi kwa Maneno:');
-  const wordsText = `${wordsLabel} ${words}`;
-  const splitWords = doc.splitTextToSize(wordsText, contentW);
-  doc.text(splitWords, margin, y);
-  y += splitWords.length * 4.2 + 4;
-
-  /* ---- Balance / paid ---- */
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(...INK);
-  doc.text(`${t('Amount Paid', 'Kiasi Kilicholipwa')}: ${formatMoney(invoice.amountPaid ?? 0, currency)}`, margin, y);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...BRAND_INK);
-  doc.text(`${t('Balance Due', 'Salio')}: ${formatMoney(invoice.balance ?? 0, currency)}`, margin + 70, y);
-  y += 8;
-
-  /* ---- Notes ---- */
-  if (invoice.notes) {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(...BRAND_INK);
-    doc.text(t('NOTES', 'MAELEZO'), margin, y);
+  [[t('Amount Paid', 'Kiasi Kilicholipwa'), invoice.amountPaid ?? 0, INK],
+   [t('Balance Due', 'Salio'), invoice.balance ?? 0, BRAND_INK]].forEach(([label, amount, colour]) => {
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
     doc.setTextColor(...INK_SOFT);
-    const notes = doc.splitTextToSize(String(invoice.notes), contentW);
-    doc.text(notes, margin, y + 5);
-    y += notes.length * 4.2 + 8;
-  }
-
-  /* ---- Payment details ---- */
-  const payDetails = [];
-  if (company.bankName) payDetails.push(`${t('Bank', 'Benki')}: ${company.bankName}`);
-  if (company.bankAccountName) payDetails.push(`${t('Account Name', 'Jina la Akaunti')}: ${company.bankAccountName}`);
-  if (company.bankAccountNumber) payDetails.push(`${t('Account No', 'Namba ya Akaunti')}: ${company.bankAccountNumber}`);
-  if (company.mobileMoney) payDetails.push(`${t('Mobile Money', 'Fedha za Simu')}: ${company.mobileMoney}`);
-  if (payDetails.length) {
+    doc.text(String(label), totalsX, totalsY);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(...BRAND_INK);
-    doc.text(t('PAYMENT DETAILS', 'Maelezo ya MALIPO'), margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(...INK_SOFT);
-    payDetails.slice(0, 4).forEach((line, i) => {
-      doc.text(String(line), margin, y + 5 + i * 4.2);
-    });
-    y += payDetails.length * 4.2 + 8;
-  }
+    doc.setTextColor(...colour);
+    doc.text(formatMoney(amount, currency), totalsX + totalsW, totalsY, { align: 'right' });
+    totalsY += 6;
+  });
+
+  // The taller column decides where the signature band starts.
+  y = Math.max(leftY, totalsY) + 8;
 
   /* ---- QR + authorisation (signature & stamp) ----
      The signature and the stamp are images uploaded in Settings → Business
@@ -478,11 +503,15 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
      ruled line / a placeholder ring, so an invoice always leaves a place to
      sign. Everything is laid out in millimetres from `authTop`, which is the
      top of the whole band. */
-  const qrSize = 30;
-  const AUTH_H = 36;
+  const qrSize = 28;
+  /* The band's lowest ink is the QR caption at authTop + 32, so 34 mm is the
+     real height. The old test reserved pageH - 22 (a 22 mm bottom margin) when
+     the footer rule actually sits at pageH - 14 — 8 mm of slack thrown away,
+     which alone was enough to push a one-line invoice onto a second page. */
+  const AUTH_H = 34;
   let authTop = y;
   // Keep the whole band on one page instead of letting it run into the footer.
-  if (authTop + AUTH_H > pageH - 22) {
+  if (authTop + AUTH_H > pageH - 18) {
     doc.addPage();
     authTop = margin;
   }
@@ -502,7 +531,7 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
 
   /* Signature: the uploaded mark sits directly above the rule it signs. */
   const sigW = 62;
-  const sigRuleY = authTop + 28;
+  const sigRuleY = authTop + 25;
   if (opts.signatureDataUrl) {
     try {
       let sigData = opts.signatureDataUrl;
@@ -527,9 +556,9 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
   doc.text(t('Authorized Signature', 'Sahihi Iliyoidhinishwa'), margin, sigRuleY + 5);
 
   /* Company stamp. */
-  const stampR = 13;
+  const stampR = 12;
   const stampCx = margin + sigW + 36;
-  const stampCy = authTop + 15;
+  const stampCy = authTop + 13;
   if (opts.stampDataUrl) {
     try {
       let stampData = opts.stampDataUrl;
@@ -544,7 +573,7 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       doc.setTextColor(...INK_FAINT);
-      doc.text(t('Company Stamp', 'Muhuri wa Kampuni'), stampCx, authTop + 32, { align: 'center' });
+      doc.text(t('Company Stamp', 'Muhuri wa Kampuni'), stampCx, authTop + 29, { align: 'center' });
     } catch (err) {
       console.warn('[export] stamp could not be embedded in the PDF', err);
     }
