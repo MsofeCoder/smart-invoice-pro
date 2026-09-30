@@ -84,6 +84,15 @@ await goLive('index.html', 4000);
 await waitFor(`!!document.querySelector('#statusDonut .donut-seg') && !!document.querySelector('#salesChart .bar-col')`);
 await waitSettled();
 
+/* On the first load after a cache-version bump the service worker re-installs
+   and precaches ~50 entries, which competes with app boot for the main thread.
+   Interacting before the shell has bound its handlers makes the theme toggle
+   look broken (it reported "light -> light" exactly once, on the first run
+   after the v14 bump, and passed on every subsequent run). Wait for the app's
+   own ready flag before touching anything. */
+const appReady = await waitFor(`!!window.__APP_READY__`, 80, 250);
+r.check('app reported ready before interaction', appReady === true, appReady);
+
 /* ---------- 1. the page came from the right place ---------- */
 r.section('Live load');
 const boot = await evaluate(`(() => ({
@@ -165,11 +174,21 @@ const theme = await evaluate(`(async () => {
   const before = document.documentElement.getAttribute('data-theme');
   const btn = document.querySelector('[data-theme-toggle], #themeToggle, .theme-toggle');
   if (!btn) return { hasToggle: false, before };
+  // Poll for the change rather than sleeping a fixed 400ms: a busy main thread
+  // can delay the handler, and a fixed sleep then reports a false failure.
+  const until = (test) => new Promise((resolve) => {
+    let n = 0;
+    const tick = () => {
+      if (test() || n++ > 40) resolve();
+      else setTimeout(tick, 50);
+    };
+    tick();
+  });
   btn.click();
-  await new Promise((r) => setTimeout(r, 400));
+  await until(() => document.documentElement.getAttribute('data-theme') !== before);
   const after = document.documentElement.getAttribute('data-theme');
   btn.click();
-  await new Promise((r) => setTimeout(r, 400));
+  await until(() => document.documentElement.getAttribute('data-theme') === before);
   return { hasToggle: true, before, after, restored: document.documentElement.getAttribute('data-theme') };
 })()`);
 r.check('a theme toggle exists', theme.hasToggle, JSON.stringify(theme));
