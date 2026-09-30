@@ -24,8 +24,8 @@
 
   var DEFAULT_BRAND = {
     preset: 'signature',
-    primary: '#2E7D32',
-    accent: '#F9A825',
+    primary: '#1B5E20',
+    accent: '#FFC107',
     radius: 12,
     sidebar: 'gradient',
     appName: '',
@@ -36,8 +36,8 @@
   /* Preset ids renamed for white-labelling. Applied on read so a palette saved
      under the old id still highlights the correct swatch in Settings. */
   var PRESET_ALIASES = { crown: 'signature' };
-  // --surface (#1B211B) is lighter than --bg (#121612), so it is the stricter backdrop.
-  var DARK_SURFACE = '#1B211B';
+  // --surface (#12231A) is lighter than --bg (#0B1610), so it is the stricter backdrop.
+  var DARK_SURFACE = '#12231A';
   var LIGHT_SURFACE = '#FFFFFF';
   var RADIUS_MIN = 0;
   var RADIUS_MAX = 24;
@@ -209,7 +209,7 @@
 
     if (style === 'light') {
       return {
-        '--sidebar-bg': dark ? '#1B211B' : '#FFFFFF',
+        '--sidebar-bg': dark ? DARK_SURFACE : '#FFFFFF',
         '--sidebar-fg': dark ? '#ECEFEC' : '#2B2B2B',
         '--sidebar-fg-soft': dark ? 'rgba(236,239,236,0.60)' : 'rgba(43,43,43,0.55)',
         '--sidebar-hover': dark ? 'rgba(255,255,255,0.06)' : mix(primary, '#FFFFFF', 0.90),
@@ -291,7 +291,7 @@
 
     vars['--radius-sm'] = Math.max(3, Math.round(radius * 0.66)) + 'px';
     vars['--radius'] = radius + 'px';
-    vars['--radius-lg'] = Math.round(radius * 1.5) + 'px';
+    vars['--radius-lg'] = Math.round(radius * 1.33) + 'px';
     vars['--radius-xl'] = Math.round(radius * 2) + 'px';
 
     var sb = sidebarVars(brand, theme, brandFill, accentFill);

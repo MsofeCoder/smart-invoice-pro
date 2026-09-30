@@ -97,8 +97,8 @@ assert('unknown sidebar falls back', normalizeBrand({ sidebar: 'hacker' }).sideb
 assert('appName trimmed + capped', normalizeBrand({ appName: '  ' + 'x'.repeat(100) + '  ' }).appName.length, 60);
 assert('null input safe', normalizeBrand(null).primary, DEFAULT_BRAND.primary);
 assert('array input safe', normalizeBrand([]).primary, DEFAULT_BRAND.primary);
-assert('matchPreset finds the default preset', matchPreset('#2E7D32', '#F9A825'), 'signature');
-assert('matchPreset case-insensitive', matchPreset('#2e7d32', '#f9a825'), 'signature');
+assert('matchPreset finds the default preset', matchPreset('#1B5E20', '#FFC107'), 'signature');
+assert('matchPreset case-insensitive', matchPreset('#1b5e20', '#ffc107'), 'signature');
 assert('preset alias: legacy crown id maps to signature', normalizeBrand({ preset: 'crown' }).preset, 'signature');
 assert('matchPreset unknown = custom', matchPreset('#123456', '#654321'), 'custom');
 
@@ -145,7 +145,7 @@ console.log('\n== Contrast guarantees (all presets, both themes) ==');
   for (const p of PRESETS) {
     for (const theme of ['light', 'dark']) {
       const v = buildPalette({ ...p, radius: 12, sidebar: 'gradient' }, theme);
-      const surface = theme === 'dark' ? '#1B211B' : '#FFFFFF';
+      const surface = theme === 'dark' ? '#12231A' : '#FFFFFF';
 
       const inkOnSurface = contrastRatio(v['--brand-ink'], surface);
       if (inkOnSurface < 4.5) bad.push(`${p.id}/${theme} brand-ink on surface = ${inkOnSurface.toFixed(2)}`);
@@ -169,7 +169,7 @@ console.log('\n== Radius + sidebar ==');
   const v = buildPalette({ ...DEFAULT_BRAND, radius: 10 }, 'light');
   assert('--radius', v['--radius'], '10px');
   assert('--radius-sm', v['--radius-sm'], '7px');
-  assert('--radius-lg', v['--radius-lg'], '15px');
+  assert('--radius-lg', v['--radius-lg'], '13px');
   assert('--radius-xl', v['--radius-xl'], '20px');
 
   const z = buildPalette({ ...DEFAULT_BRAND, radius: 0 }, 'light');
@@ -239,8 +239,8 @@ console.log('\n== Output helpers ==');
 /* ================= Boot script behaviour ================= */
 console.log('\n== Boot script ==');
 {
-  assert('boot exports DEFAULT_BRAND', Boot.DEFAULT_BRAND.primary, '#2E7D32');
-  assertTrue('boot normalizes bad input', Boot.normalizeBrand({ primary: 'nope' }).primary === '#2E7D32');
+  assert('boot exports DEFAULT_BRAND', Boot.DEFAULT_BRAND.primary, '#1B5E20');
+  assertTrue('boot normalizes bad input', Boot.normalizeBrand({ primary: 'nope' }).primary === '#1B5E20');
   assert('boot loadBrandSync with empty storage', Boot.loadBrandSync(), null);
 
   // applyPalette must write every token onto the element

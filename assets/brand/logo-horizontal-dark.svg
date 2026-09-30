@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 96" role="img" aria-label="Smart Invoice Pro">
+  <title>Smart Invoice Pro</title>
+  <!-- Dark-surface lockup: the tile is unchanged (its green reads on dark), only
+       the wordmark flips to the light ink so it stays legible. -->
+  <g transform="translate(0 12) scale(0.75)">
+    <rect width="96" height="96" rx="22" fill="#1B5E20"/>
+    <path d="M27 18h27l16 16v40a4 4 0 0 1-4 4H27a4 4 0 0 1-4-4V22a4 4 0 0 1 4-4z" fill="#F4F8F4"/>
+    <path d="M54 18v12a4 4 0 0 0 4 4h12z" fill="#FFC107"/>
+    <rect x="32" y="36" width="14" height="4" rx="2" fill="#A5D6A7"/>
+    <rect x="32" y="44" width="24" height="4" rx="2" fill="#A5D6A7"/>
+    <path d="M34 62l9 9 18-20" fill="none" stroke="#1B5E20" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="88" y="60" textLength="240" lengthAdjust="spacingAndGlyphs"
+        font-family="Plus Jakarta Sans, Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-size="34" font-weight="800" letter-spacing="-0.68" fill="#EAF3EC">Smart Invoice</text>
+  <rect x="340" y="33" width="56" height="30" rx="15" fill="#FFC107"/>
+  <text x="351" y="53" textLength="34" lengthAdjust="spacingAndGlyphs"
+        font-family="Plus Jakarta Sans, Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-size="12" font-weight="800" letter-spacing="0.96" fill="#0F1F14">PRO</text>
+</svg>

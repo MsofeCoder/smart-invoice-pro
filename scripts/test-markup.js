@@ -224,6 +224,80 @@ console.log('\n== Brand boot wiring ==');
   }
 }
 
+/* ---------- 3b. PWA head wiring on every page ----------
+   The head is the one place a per-page detail is easy to forget: adding a
+   favicon to index.html and not to the other five is silent, and only shows up
+   as a 404 in the console on a page nobody opened. */
+console.log('\n== PWA head wiring ==');
+{
+  for (const page of PAGES) {
+    const html = fs.readFileSync(path.join(ROOT, page), 'utf8');
+    const head = html.slice(0, html.indexOf('</head>'));
+    assert(`${page}: links the SVG favicon`, /<link rel="icon" href="favicon\.svg" type="image\/svg\+xml">/.test(head));
+    assert(`${page}: links the .ico favicon`, /<link rel="icon" href="favicon\.ico"/.test(head));
+    assert(`${page}: links the apple-touch-icon`, /<link rel="apple-touch-icon" href="assets\/icons\/apple-touch-icon\.png">/.test(head));
+    assert(`${page}: declares apple-mobile-web-app-capable`, /<meta name="apple-mobile-web-app-capable" content="yes">/.test(head));
+    assert(`${page}: declares mobile-web-app-capable`, /<meta name="mobile-web-app-capable" content="yes">/.test(head));
+    assert(`${page}: declares an apple-mobile-web-app-title`, /<meta name="apple-mobile-web-app-title"/.test(head));
+  }
+  // A head full of 404s is worse than no head at all, so prove the targets exist.
+  for (const rel of ['favicon.svg', 'favicon.ico', 'favicon.png', 'assets/icons/apple-touch-icon.png', 'assets/brand/favicon.svg']) {
+    assert(`head-referenced file exists: ${rel}`, fs.existsSync(path.join(ROOT, rel)), rel);
+  }
+}
+
+/* ---------- 3c. Fonts are self-hosted (the offline contract) ----------
+   The whole app is offline-first, so a remote font host would be a silent
+   dependency: it works on a developer's machine and breaks on a plane. */
+console.log('\n== Self-hosted fonts ==');
+{
+  const css = fs.readFileSync(path.join(ROOT, 'css', 'styles.css'), 'utf8');
+  const faces = css.match(/@font-face\s*\{[^}]*\}/gs) || [];
+  const faceFor = (name) => faces.find((f) => new RegExp(`font-family:\\s*'${name}'`).test(f));
+
+  assert('declares a Plus Jakarta Sans @font-face', !!faceFor('Plus Jakarta Sans'));
+  assert('declares an Inter @font-face', !!faceFor('Inter'));
+  assert('both faces use font-display: swap', faces.length >= 2 && faces.every((f) => /font-display:\s*swap/.test(f)));
+  assert('faces reference local woff2 files', faces.every((f) => /url\('\.\.\/assets\/fonts\/[a-z-]+\.woff2'\)\s*format\('woff2'\)/.test(f)));
+  assert('no remote font host is referenced', !/fonts\.(googleapis|gstatic)\.com/.test(css));
+  assert('both faces declare a unicode-range subset', faces.every((f) => /unicode-range:/.test(f)));
+  assert('the font stacks fall back to the platform UI stack',
+    /--font-sans:\s*'Inter',\s*"Segoe UI",\s*system-ui/.test(css) &&
+    /--font-display:\s*'Plus Jakarta Sans',\s*'Inter',\s*"Segoe UI"/.test(css));
+
+  for (const f of ['assets/fonts/inter-latin.woff2', 'assets/fonts/plus-jakarta-sans-latin.woff2']) {
+    assert(`font file exists: ${f}`, fs.existsSync(path.join(ROOT, f)), f);
+  }
+}
+
+/* ---------- 3d. The identity ramp is declared once on :root ----------
+   The app's own green/gold ramp is what the mark, the favicon and the PWA icon
+   are built from. It must NOT be expressed in terms of --brand, or a client's
+   palette would recolour the app's own logo. */
+console.log('\n== Identity ramp ==');
+{
+  const css = fs.readFileSync(path.join(ROOT, 'css', 'styles.css'), 'utf8');
+  const i = css.indexOf(':root {');
+  const rootBlock = css.slice(i, css.indexOf('}', i));
+  const has = (t) => new RegExp(`${t}(?![\\w-])\\s*:\\s*[^;]+;`).test(rootBlock);
+
+  for (const t of [
+    '--brand-900', '--brand-700', '--brand-500', '--brand-200', '--brand-100', '--brand-50',
+    '--spark', '--spark-100', '--spark-900',
+    '--ink', '--ink-2', '--line', '--surface', '--bg',
+    '--danger', '--danger-100', '--danger-900',
+    '--radius-sm', '--radius', '--radius-lg',
+    '--shadow-1', '--shadow-2',
+  ]) {
+    assert(`:root declares ${t}`, has(t), t);
+  }
+  // Literal hexes, not var() indirection — see the note above.
+  for (const t of ['--brand-900', '--brand-700', '--brand-500', '--spark']) {
+    assert(`${t} is a literal colour, not brand-derived`,
+      new RegExp(`${t}(?![\\w-])\\s*:\\s*#[0-9A-Fa-f]{6}\\s*;`).test(rootBlock), t);
+  }
+}
+
 /* ---------- 4. Service worker precaches everything it must ---------- */
 console.log('\n== Service worker precache ==');
 {
@@ -238,6 +312,22 @@ console.log('\n== Service worker precache ==');
   }
   for (const js of ['js/brand.js', 'js/brand-boot.js', 'js/shell.js', 'js/export.js', 'js/db.js']) {
     assert(`sw precaches ${js}`, listed.has(js));
+  }
+
+  /* The self-hosted fonts and the brand sources are offline-critical: a cold
+     start with no network must still paint the real typeface and the real mark.
+     These are exactly the files a "add a font" change is most likely to forget. */
+  for (const asset of [
+    'assets/fonts/inter-latin.woff2',
+    'assets/fonts/plus-jakarta-sans-latin.woff2',
+    'assets/brand/logo-mark.svg',
+    'assets/brand/logo-horizontal.svg',
+    'assets/brand/logo-horizontal-dark.svg',
+    'assets/brand/logo-mono.svg',
+    'favicon.svg',
+    'favicon.ico',
+  ]) {
+    assert(`sw precaches ${asset}`, listed.has(asset));
   }
 
   // Every file the sw claims to cache must actually exist on disk.
@@ -432,7 +522,7 @@ console.log('\n== Dark theme token contract ==');
   //     (The topbar's blur is inherited from its base rule, so the dark rule only
   //     needs to pin a fill translucent enough for that blur to be visible.)
   const REQUIRED = {
-    '.topbar': /background:\s*rgba\(17, 23, 38, 0\.75\)/,
+    '.topbar': /background:\s*rgba\(18, 35, 26, 0\.75\)/,
     '.sidebar': /backdrop-filter:\s*blur\(12px\)/,
     '.bottom-nav': /backdrop-filter:\s*blur\(12px\)/,
     '.card': /border-radius:\s*var\(--radius\)/,

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Smart Invoice Pro">
+  <title>Smart Invoice Pro</title>
+  <!-- Favicon: the mark minus the two hairline text rules, which disappear at
+       16px, and with a slightly heavier check so it survives the downscale. -->
+  <rect width="96" height="96" rx="22" fill="#1B5E20"/>
+  <path d="M27 18h27l16 16v40a4 4 0 0 1-4 4H27a4 4 0 0 1-4-4V22a4 4 0 0 1 4-4z" fill="#F4F8F4"/>
+  <path d="M54 18v12a4 4 0 0 0 4 4h12z" fill="#FFC107"/>
+  <path d="M33 61l10 10 19-21" fill="none" stroke="#1B5E20" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

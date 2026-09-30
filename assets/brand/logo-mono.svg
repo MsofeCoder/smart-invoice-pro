@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Smart Invoice Pro">
+  <title>Smart Invoice Pro</title>
+  <!-- Single-colour mark for print and stamps. `currentColor` means it takes the
+       surrounding text colour (and renders black when used as an <img>, which is
+       what a black-and-white print wants). The document is knocked out of the
+       tile with a mask so no second ink is needed. -->
+  <mask id="sip-mono-cut">
+    <rect width="96" height="96" rx="22" fill="#fff"/>
+    <path d="M27 18h27l16 16v40a4 4 0 0 1-4 4H27a4 4 0 0 1-4-4V22a4 4 0 0 1 4-4z" fill="#000"/>
+    <path d="M34 62l9 9 18-20" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  </mask>
+  <rect width="96" height="96" rx="22" fill="currentColor" mask="url(#sip-mono-cut)"/>
+</svg>

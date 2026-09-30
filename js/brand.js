@@ -198,8 +198,8 @@ export function contrastGrade(ratio) {
 
 export const DEFAULT_BRAND = Object.freeze({
   preset: 'signature',
-  primary: '#2E7D32',
-  accent: '#F9A825',
+  primary: '#1B5E20',
+  accent: '#FFC107',
   radius: 12,
   sidebar: 'gradient',
   appName: '',
@@ -208,7 +208,7 @@ export const DEFAULT_BRAND = Object.freeze({
 
 /** Curated, contrast-checked palettes. Every one pairs a deep primary with a bright accent. */
 export const PRESETS = [
-  { id: 'signature', name: 'Signature Green', primary: '#2E7D32', accent: '#F9A825' },
+  { id: 'signature', name: 'Signature Green', primary: '#1B5E20', accent: '#FFC107' },
   { id: 'ocean',    name: 'Ocean Blue',      primary: '#1565C0', accent: '#00ACC1' },
   { id: 'midnight', name: 'Midnight Navy',   primary: '#0D47A1', accent: '#FFC107' },
   { id: 'royal',    name: 'Royal Purple',    primary: '#6A1B9A', accent: '#EC407A' },
@@ -270,9 +270,10 @@ export function matchPreset(primary, accent) {
 
 const SIDEBAR_IDS = SIDEBAR_STYLES.map((s) => s.id);
 
-/* Dark surfaces. `--surface` (#1B211B) is lighter than `--bg` (#121612), so it is
-   the stricter backdrop and the one text has to clear. */
-const DARK_SURFACE = '#1B211B';
+/* Dark surfaces. `--surface` (#12231A) is lighter than `--bg` (#0B1610), so it is
+   the stricter backdrop and the one text has to clear. Kept in sync with
+   brand-boot.js — scripts/test-brand.js asserts the two agree. */
+const DARK_SURFACE = '#12231A';
 const LIGHT_SURFACE = '#FFFFFF';
 
 function sidebarVars(brand, theme, brandFill, accentFill) {
@@ -368,10 +369,11 @@ export function buildPalette(input, theme = 'light') {
     vars['--gold-contrast'] = readableOn(accentFill);
   }
 
-  // Radius scale derived from the single base value.
+  // Radius scale derived from the single base value. The 0.66 / 1 / 1.33 / 2
+  // steps are the design system's 8/12/16/24 at the default radius of 12.
   vars['--radius-sm'] = `${Math.max(3, Math.round(radius * 0.66))}px`;
   vars['--radius'] = `${radius}px`;
-  vars['--radius-lg'] = `${Math.round(radius * 1.5)}px`;
+  vars['--radius-lg'] = `${Math.round(radius * 1.33)}px`;
   vars['--radius-xl'] = `${Math.round(radius * 2)}px`;
 
   Object.assign(vars, sidebarVars(brand, theme, brandFill, accentFill));

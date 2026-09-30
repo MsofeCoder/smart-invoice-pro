@@ -27,6 +27,8 @@ let state = {
   defaultCurrency: 'TZS',
   language: 'en',
   logoDataUrl: null,
+  signatureDataUrl: null,
+  stampDataUrl: null,
 };
 
 /* ================= Brand & Appearance ================= */
@@ -290,19 +292,113 @@ function initBrandUI() {
   bindRadioKeys($('#brandSidebar'), '[data-sidebar]');
 }
 
+/**
+ * Read a logo file and normalise it to a PNG data URL.
+ *
+ * The PDF builder embeds the stored bytes verbatim, so the format matters:
+ *   - an SVG has no raster form jsPDF can consume, so it silently disappears
+ *     from the PDF (the preview still shows it — the worst kind of mismatch),
+ *   - a JPEG or WebP is re-encoded and can bloat the PDF by an order of
+ *     magnitude (a 6 KB logo produced a 128 KB PDF).
+ *
+ * Rasterising once, at upload, into a size-bounded PNG keeps the preview, the
+ * PDF and the print sheet identical and small, and preserves transparency.
+ * Falls back to the raw data URL if the browser cannot decode the image.
+ */
+async function readImageAsPng(file) {
+  const raw = await readFileAsDataURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error('Image could not be decoded'));
+      el.src = raw;
+    });
+    // The PDF draws the logo at 22 mm; 512 px is ~590 dpi, far past what any
+    // printer resolves, and it caps the stored base64 at a sane size.
+    const MAX = 512;
+    const srcW = img.naturalWidth || img.width || 300;
+    const srcH = img.naturalHeight || img.height || 150;
+    const scale = Math.min(1, MAX / Math.max(srcW, srcH));
+    const w = Math.max(1, Math.round(srcW * scale));
+    const h = Math.max(1, Math.round(srcH * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return raw;
+    ctx.drawImage(img, 0, 0, w, h);
+    const png = canvas.toDataURL('image/png');
+    // An implausibly short result means the draw produced nothing useful.
+    return png && png.length > 128 ? png : raw;
+  } catch {
+    return raw;
+  }
+}
+
+/** Redraw all three artwork previews from `state`. */
+function renderArtwork() {
+  const draw = (preview, value, empty, label) => {
+    const box = $(preview);
+    if (!box) return;
+    box.innerHTML = value
+      ? `<img src="${value}" alt="${label}">`
+      : `<span class="text-faint text-xs">${empty}</span>`;
+  };
+  draw('#setLogoPreview', state.logoDataUrl, 'No logo', 'Logo');
+  draw('#setSignaturePreview', state.signatureDataUrl, 'None', 'Signature');
+  draw('#setStampPreview', state.stampDataUrl, 'None', 'Stamp');
+}
+
+/**
+ * Wire one artwork uploader: a file input, a preview box and a Remove button.
+ *
+ * The three of them (logo, signature, stamp) differ only in their element ids,
+ * their empty-state wording and which `state` key they write, and they all need
+ * the same guards — so they share one binder rather than three near-identical
+ * listeners.
+ */
+function bindArtworkUploader({ input, remove, empty, label, key }) {
+  const inputEl = $(input);
+  if (!inputEl) return;
+
+  inputEl.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { toast(`${label} must be under 2MB`, 'error'); return; }
+    try {
+      state[key] = await readImageAsPng(file);
+      renderArtwork();
+      toast(`${label} selected — click Save Settings to apply`, 'info');
+    } catch {
+      toast(`Failed to read ${label.toLowerCase()}`, 'error');
+    }
+  });
+
+  $(remove)?.addEventListener('click', () => {
+    state[key] = null;
+    renderArtwork();
+    inputEl.value = '';
+  });
+}
+
 async function loadSettings() {
-  const [company, currencies, defaultCurrency, language, logoDataUrl] = await Promise.all([
+  const [company, currencies, defaultCurrency, language, logoDataUrl, signatureDataUrl, stampDataUrl] = await Promise.all([
     getSetting('company', {}),
     getCurrencies(),
     getDefaultCurrencyCode(),
     getSetting('language', 'en'),
     getSetting('logoDataUrl', null),
+    getSetting('signatureDataUrl', null),
+    getSetting('stampDataUrl', null),
   ]);
   state.company = company || {};
   state.currencies = currencies;
   state.defaultCurrency = defaultCurrency || 'TZS';
   state.language = language || 'en';
   state.logoDataUrl = logoDataUrl || null;
+  state.signatureDataUrl = signatureDataUrl || null;
+  state.stampDataUrl = stampDataUrl || null;
 }
 
 function populateForm() {
@@ -336,13 +432,8 @@ function populateForm() {
     .map((cur) => `<option value="${escapeHTML(cur.code)}" ${cur.code === state.defaultCurrency ? 'selected' : ''}>${escapeHTML(cur.code)} — ${escapeHTML(cur.name)}</option>`)
     .join('');
 
-  // Logo preview
-  const preview = $('#setLogoPreview');
-  if (state.logoDataUrl) {
-    preview.innerHTML = `<img src="${state.logoDataUrl}" alt="Logo" style="width:100%;height:100%;object-fit:cover">`;
-  } else {
-    preview.innerHTML = '<span class="text-faint text-xs">No logo</span>';
-  }
+  // Logo / signature / stamp previews
+  renderArtwork();
 }
 
 async function saveSettings() {
@@ -378,6 +469,8 @@ async function saveSettings() {
       language,
       defaultCurrency,
       logoDataUrl: state.logoDataUrl,
+      signatureDataUrl: state.signatureDataUrl,
+      stampDataUrl: state.stampDataUrl,
     });
     await setDefaultCurrencyCode(defaultCurrency);
     if (darkMode) {
@@ -639,23 +732,10 @@ async function init() {
   $('#resetBtn')?.addEventListener('click', handleReset);
   $('#saveSettingsBtn')?.addEventListener('click', () => refreshSubscriptionUI());
 
-  $('#setLogoInput')?.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { toast('Logo must be under 2MB', 'error'); return; }
-    try {
-      state.logoDataUrl = await readFileAsDataURL(file);
-      $('#setLogoPreview').innerHTML = `<img src="${state.logoDataUrl}" alt="Logo" style="width:100%;height:100%;object-fit:cover">`;
-      toast('Logo selected — click Save Settings to apply', 'info');
-    } catch {
-      toast('Failed to read logo', 'error');
-    }
-  });
-  $('#setLogoRemove')?.addEventListener('click', () => {
-    state.logoDataUrl = null;
-    $('#setLogoPreview').innerHTML = '<span class="text-faint text-xs">No logo</span>';
-    $('#setLogoInput').value = '';
-  });
+  // Uploaded artwork — one binder for the logo, the signature and the stamp.
+  bindArtworkUploader({ input: '#setLogoInput', remove: '#setLogoRemove', empty: 'No logo', label: 'Logo', key: 'logoDataUrl' });
+  bindArtworkUploader({ input: '#setSignatureInput', remove: '#setSignatureRemove', empty: 'None', label: 'Signature', key: 'signatureDataUrl' });
+  bindArtworkUploader({ input: '#setStampInput', remove: '#setStampRemove', empty: 'None', label: 'Stamp', key: 'stampDataUrl' });
 }
 
 document.addEventListener('DOMContentLoaded', () => {

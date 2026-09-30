@@ -46,7 +46,7 @@ Every business can make the app *theirs* — no code, no rebuild, no designer.
 - **Number-to-words** in English *and* Kiswahili (e.g. *"One Hundred Twenty Thousand Tanzanian Shillings Only"*)
 
 ### Export, print & share
-- **Professional A4 PDF** (jsPDF + AutoTable): embedded logo, QR code, automatic pagination, branded header/footer, selectable text, print-ready
+- **Professional A4 PDF** (jsPDF + AutoTable): logo stacked beneath the business name, digital signature & company stamp block, QR code, automatic pagination, branded header/footer, selectable text, print-ready
 - **Uniform layout across devices** — the PDF is built from fixed millimetre geometry, not screen pixels, so a 320px phone and a 4K desktop produce byte-identical output
 - **WhatsApp sharing** — one button on the invoice preview. Prefers the native share sheet with the PDF attached; falls back to a `wa.me` deep link that works on WhatsApp Web, Desktop and mobile; falls back again to copying the message. Phone numbers are normalised (`+255…`, `00255…`, `0712345678` and bare national numbers all work).
 - **Print** from a clean invoice view (no browser chrome)
@@ -180,7 +180,7 @@ Then open `http://127.0.0.1:8080`.
 
 ## 🧰 How to use
 
-1. **Settings** → enter your business info, upload your logo, set your currency, tax rate and invoice numbering.
+1. **Settings** → enter your business info, upload your logo, digital signature and company stamp, set your currency, tax rate and invoice numbering.
 2. **Products** → add the products/services you sell (prices, tax, stock).
 3. **Customers** → add your customers.
 4. **Invoices** → click **New Invoice**, select a customer, add line items, adjust discounts/tax/shipping, save, preview, print, download the PDF or send it on WhatsApp.
@@ -249,9 +249,77 @@ npm run test:config
 
 ---
 
+## 🎨 Brand and design system
+
+Smart Invoice Pro ships with its own identity, and it is deliberately **separate from your business's brand**. The app's mark (the green tile, the folded gold corner, the check) never appears on an invoice in place of your logo — see [Two brands, one invoice](#two-brands-one-invoice) below.
+
+### The mark
+
+**"The Check-Invoice mark"** — a document with a folded gold corner and a bold check, on a green tile. The master is `assets/brand/logo-mark.svg` (viewBox `0 0 96 96`), and every raster icon in `assets/icons/` is generated from the same geometry by `scripts/generate-icons.js` (Node built-ins only — no image library, no build step).
+
+| File | Purpose |
+|---|---|
+| `assets/brand/logo-mark.svg` | The mark alone — square, for icons and avatars |
+| `assets/brand/logo-horizontal.svg` | Mark + "Smart Invoice" wordmark + gold `PRO` pill |
+| `assets/brand/logo-horizontal-dark.svg` | Same lockup with the wordmark in `#EAF3EC` for dark surfaces |
+| `assets/brand/logo-mono.svg` | Single-colour via `currentColor` + a mask — inherits whatever it is placed on |
+| `assets/brand/favicon.svg` (and root `favicon.svg`) | Mark minus the two hairline rules, heavier check, for 16px |
+
+Regenerate every PNG/ICO after editing the mark or the palette:
+
+```bash
+npm run icons
+```
+
+### The palette
+
+The identity ramp is fixed and **not** affected by the white-label setting — a client's palette re-themes the *interface*, but the app logo always keeps these greens.
+
+```css
+--brand-900:#0F3D14;  --brand-700:#1B5E20;  --brand-500:#43A047;
+--brand-200:#A5D6A7;  --brand-100:#C8E6C9;  --brand-50:#E8F5E9;
+--spark:#FFC107;      --spark-100:#FFECB3;  --spark-900:#5D4300;
+--ink:#0F1F14;  --ink-2:#4C5F52;  --line:#D5E2D6;  --surface:#FFFFFF;  --bg:#F4F8F4;
+--danger:#B3261E;  --danger-100:#FFCDD2;  --danger-900:#7A1414;
+--radius-sm:8px;  --radius:12px;  --radius-lg:16px;
+--shadow-1:0 1px 2px rgba(15,31,20,.06);  --shadow-2:0 4px 16px rgba(15,31,20,.08);
+```
+
+The white-label brand tokens (`--brand`, `--gold`, `--sidebar-*`) are computed from the client's two colours by `js/brand.js` and written **inline on `<html>`** before first paint. `:root` carries the same values as a fallback for the (rare) case where the engine never runs; `scripts/test-brand.js` asserts the stylesheet and the engine agree, so the two can never drift.
+
+In dark mode the `--brand-700` step lifts to `#43A047` so it still reads as a link colour on the deep canvas; the mark and the icon backgrounds keep the true `#1B5E20`.
+
+### Typography
+
+Two self-hosted **variable** woff2 files, Latin-subset, declared with `@font-face` at the top of `css/styles.css`:
+
+| Face | Role | Weights |
+|---|---|---|
+| Plus Jakarta Sans | Headings, brand lockup, big numbers, page titles | 200–800 |
+| Inter | Body, tables, forms | 100–900 |
+
+One file per family covers every weight, so a cold load costs two requests and nothing is fetched from a third-party origin — the app stays fully offline-capable. `font-display: swap` paints text immediately in the fallback stack and re-renders when the face arrives, so a slow first load never shows invisible text. Both families fall back to the platform UI stack (`Segoe UI, system-ui, …`) if the woff2 fails to load.
+
+All money figures and numeric table columns are set with `font-variant-numeric: tabular-nums`, so a column of totals aligns on the decimal and a value does not jitter as it updates.
+
+### Two brands, one invoice
+
+This is the one rule that must never be broken:
+
+- **The app brand** (the Check-Invoice mark) lives in the app chrome — the sidebar lockup, the favicon, the PWA icon, the splash.
+- **Your business brand** (your logo, name, TIN, signature and stamp) lives on the invoice and the PDF.
+
+`js/invoice.js` / `js/export.js` render *your* logo and *your* signature/stamp. Replacing either with the app mark would put Smart Invoice Pro's branding on a document you send to your customer, which is exactly what the white-label setting exists to prevent. The optional "Made with Smart Invoice Pro" footer is **off by default** and is the only place the app name may appear on a printed invoice.
+
+### Contrast
+
+Every preset is checked for WCAG AA on both themes before it ships — `scripts/test-brand.js` sweeps all 12 presets × 2 themes and fails on any text/fill pair below 4.5:1, including the sidebar's active row. A brand colour that cannot carry readable text is nudged along the lightness axis until it can (`ensureFillContrast`), so a client can never pick a palette that produces an unreadable button.
+
+---
+
 ## 🌗 Design tokens & the dark theme
 
-Dark mode is a **Linear/Stripe-inspired slate** layer on top of the same stylesheet, not a second theme. It is built in two tiers, both in `css/styles.css`.
+Dark mode is a **deep-forest layer** on top of the same stylesheet, not a second theme: a green-tinted near-black canvas that sits in the same colour family as the light neutrals. It is built in two tiers, both in `css/styles.css`.
 
 ### Tier 1 — the token blocks (section 1)
 
@@ -259,14 +327,14 @@ Dark mode is a **Linear/Stripe-inspired slate** layer on top of the same stylesh
 
 ```css
 /* :root — light values reproduce the legacy tokens exactly */
---bg-canvas: #F8F8F8;  --bg-surface: #FFFFFF;  --bg-elevated: #FFFFFF;  --bg-hover: #F3F5F3;
---border-subtle: #E4E7E4;  --border-medium: #CBD3CB;
---text-primary: #2B2B2B;  --text-secondary: #5A5A5A;  --text-tertiary: #8A8A8A;
+--bg-canvas: #F4F8F4;  --bg-surface: #FFFFFF;  --bg-elevated: #FFFFFF;  --bg-hover: #EDF3EE;
+--border-subtle: #D5E2D6;  --border-medium: #B9CDBB;
+--text-primary: #0F1F14;  --text-secondary: #4C5F52;  --text-tertiary: #7C8F82;
 
-/* [data-theme="dark"] — a near-black canvas, two raised surfaces, hairline white borders */
---bg-canvas: #090D16;  --bg-surface: #111726;  --bg-elevated: #1A2337;  --bg-hover: #222E47;
---border-subtle: rgba(255,255,255,.07);  --border-medium: rgba(255,255,255,.14);
---text-primary: #F8FAFC;  --text-secondary: #94A3B8;  --text-tertiary: #64748B;
+/* [data-theme="dark"] — a deep canvas, two raised surfaces, quiet green hairlines */
+--bg-canvas: #0B1610;  --bg-surface: #12231A;  --bg-elevated: #182C20;  --bg-hover: #22382A;
+--border-subtle: #233A2B;  --border-medium: #2F4A38;
+--text-primary: #EAF3EC;  --text-secondary: #9DB2A3;  --text-tertiary: #6E8474;
 
 /* …then the one block that makes ~1200 lines of component CSS adopt it */
 --bg: var(--bg-canvas);      --surface: var(--bg-surface);  --surface-2: var(--bg-elevated);
@@ -274,7 +342,9 @@ Dark mode is a **Linear/Stripe-inspired slate** layer on top of the same stylesh
 --ink: var(--text-primary);  --ink-soft: var(--text-secondary);  --ink-faint: var(--text-tertiary);
 ```
 
-Because the legacy names survive as aliases, **no component rule had to change** to adopt the new palette — and any component written later keeps working either way. `--surface-2` intentionally maps to `--bg-elevated` (not `--bg-hover`): a grey panel that reads as *recessed* on white has to step *up* to be visible on a near-black canvas.
+Because the legacy names survive as aliases, **no component rule had to change** to adopt the new palette — and any component written later keeps working either way. `--surface-2` intentionally maps to `--bg-elevated` (not `--bg-hover`): a panel that reads as *recessed* on white has to step *up* to be visible on a near-black canvas.
+
+The canonical neutral names `--ink-2` and `--line` are declared alongside `--ink-soft` and `--border` and carry the same values, so a component may use either name. `--line` is re-pointed to `#233A2B` in dark.
 
 Two tokens are **derived from the brand** rather than hardcoded, so a client's palette drives them:
 
@@ -291,7 +361,7 @@ Everything that needed a *different material* in dark, scoped so it cannot touch
 
 | Component | Dark treatment |
 |---|---|
-| Topbar / bottom nav | `backdrop-filter: blur(12px)` over `rgba(17,23,38,.75)` with a hairline bottom/top seam |
+| Topbar / bottom nav | `backdrop-filter: blur(12px)` over `rgba(18,35,26,.75)` with a hairline bottom/top seam |
 | Sidebar | Blur + a `--border-subtle` right seam (its fill stays brand-owned — see below) |
 | Cards | 12px corners, `--border-subtle` seam, `--bg-surface` |
 | Tables | Hairline rows, a raised `--bg-elevated` head, neutral `--bg-hover` row hover |
@@ -300,13 +370,13 @@ Everything that needed a *different material* in dark, scoped so it cannot touch
 | Inputs | Recessed well on `--bg-elevated`, `--border-focus` + `--accent-glow` focus ring |
 | Modal / toast / menu | `--bg-elevated` so they clear the canvas, plus a hairline |
 
-**Why the sidebar keeps its brand fill:** `js/brand.js` writes `--sidebar-bg` *inline* on `<html>` for all four sidebar styles, and an inline custom property outranks every selector. A dark rule therefore cannot repaint it — and overriding the `background` *property* instead would silently discard the client's Gradient / Solid / Deep / Light choice. So the dark theme adds only the glass material (blur, seam, top highlight) and leaves the fill to the brand engine. The **Light** sidebar style already resolves to a slate surface in dark mode.
+**Why the sidebar keeps its brand fill:** `js/brand.js` writes `--sidebar-bg` *inline* on `<html>` for all four sidebar styles, and an inline custom property outranks every selector. A dark rule therefore cannot repaint it — and overriding the `background` *property* instead would silently discard the client's Gradient / Solid / Deep / Light choice. So the dark theme adds only the glass material (blur, seam, top highlight) and leaves the fill to the brand engine. The **Light** sidebar style already resolves to a raised surface in dark mode.
 
-**Want a slate sidebar anyway?** Override the property, not the token — and accept that it discards the client's sidebar choice while dark mode is active:
+**Want an opaque sidebar anyway?** Override the property, not the token — and accept that it discards the client's sidebar choice while dark mode is active:
 
 ```css
 [data-theme="dark"] .sidebar {
-  background: rgba(17, 23, 38, 0.85);
+  background: rgba(18, 35, 26, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -345,7 +415,7 @@ Light mode is **provably unchanged**. A computed-style capture of 6 pages × 52 
 - the 16 component treatments and 6 status pills are present, and the pill fills are translucent
 - the print block resets the structural scale, does **not** pin the brand, and `shell.js` wires the `beforeprint` swap
 
-`test-e2e.js` adds the runtime half: it emulates print media in dark mode and asserts a white invoice background with dark text, then fires `beforeprint` / `afterprint` and asserts the brand palette swaps to `#2E7D32` and back.
+`test-e2e.js` adds the runtime half: it emulates print media in dark mode and asserts a white invoice background with dark text, then fires `beforeprint` / `afterprint` and asserts the brand palette swaps to `#1B5E20` and back.
 
 ---
 
@@ -426,23 +496,23 @@ Verified by `scripts/test-responsive.js`, which sweeps **10 widths × 6 pages** 
 Everything runs on Node built-ins plus a headless Chrome — no test framework to install.
 
 ```bash
-npm test          # 592 static checks: engine, utils, theming, config, plans, icons, markup
-npm run test:e2e  # 389 browser checks: journeys, a11y, polish, responsive sweep, platform
-npm run test:all  # both — 981 checks
+npm test          # 708 static checks: engine, utils, theming, config, plans, icons, markup
+npm run test:e2e  # 410 browser checks: journeys, a11y, polish, responsive sweep, platform
+npm run test:all  # both — 1118 checks
 ```
 
 | Command | What it covers |
 |---|---|
 | `npm test` | Financial math, XSS escaping, colour math, brand-boot parity across 242 brand configurations, WCAG AA across all presets, config shape, storage-key semantics, white-label guard, quota arithmetic, licence keys, phone normalisation, icon decoding, CSS/markup contracts, the mobile-first grid contract, the dark-theme token contract, service-worker precache integrity, accessible names |
-| `npm run test:e2e` | Every page loads clean; brand apply/persist/reset; flash-free first paint; dark mode; customer & product CRUD; invoice creation with verified totals; the free-tier cap and upgrade modal; reports; PDF/CSV/QR export (asserts the `%PDF` magic bytes); WhatsApp link construction; backup/restore; currency switching; genuine offline mode |
+| `npm run test:e2e` | Every page loads clean; brand apply/persist/reset; flash-free first paint; dark mode; customer & product CRUD; invoice creation with verified totals; the free-tier cap and upgrade modal; reports; PDF/CSV/QR export (asserts the `%PDF` magic bytes); **invoice branding — the business logo and name must reach the preview, the footer and the embedded PDF, and a non-PNG logo upload must be normalised**; **invoice layout regressions — line-item inputs must not clip, the logo must stack beneath the business name, the Bill To / Ship To panel must grow around its contents so the TIN never spills, and the uploaded signature and stamp must reach both the preview and the PDF**; WhatsApp link construction; backup/restore; currency switching; genuine offline mode |
 | `npm run test:a11y` | Radio-group semantics, roving tabindex, arrow-key navigation (including wrap-around), accessible names for every control, keyboard reachability with a custom palette |
 | `npm run test:polish` | Button shine sweep and hover lift, ripple creation + its stacking order, the loading-state contract, recessed switch, custom checkbox, tooltips, and that `prefers-reduced-motion` genuinely neutralises the motion |
 | `npm run test:responsive` | Sweeps 10 widths (320→1600px) × 6 pages, failing on page overflow, crushed grids, clipped text and chart-label collisions — then the dashboard chart ranges (7/30/90 days × 375/768/1024/1440px) for overflow, card overlap, label collisions and `data-density` — then asserts the chrome contract (bottom nav → hamburger drawer → docked sidebar) |
 | `npm run test:platform` | Storage adapter contract (including that a failed cloud switch falls back to local), the free-tier gate and upgrade modal, licence activation/persistence/reset, payment-gateway rendering, the WhatsApp share path and its popup-blocked fallback, runtime white-label identity, and the service-worker offline cache |
 | `npm run test:config` | `app.config.js` shape, storage-key prefixing and legacy fallback, plan/gateway declarations, script load order, and the white-label guard |
 | `npm run test:license` | Month keys, quota evaluation (free/pro/unknown plans), licence-key round-trip and rejection, phone normalisation, message templating, `wa.me` URLs |
-| `npm run test:assets` | Decodes every generated PNG and asserts dimensions, alpha coverage, corner rounding, full-bleed maskable variants and palette — this is the guard that caught every icon shipping fully transparent |
-| `npm run test:unit` / `test:brand` / `test:markup` | Individual suites (`test:markup` owns the mobile-first grid contract **and** the dark-theme token contract) |
+| `npm run test:assets` | Decodes every generated PNG and asserts dimensions, alpha coverage, corner rounding, full-bleed maskable variants and palette, the maskable safe zone (the mark must stay inside the 80% circle), the five brand SVG sources, and the multi-resolution `favicon.ico` — this is the guard that caught every icon shipping fully transparent |
+| `npm run test:unit` / `test:brand` / `test:markup` | Individual suites (`test:markup` owns the mobile-first grid contract, the dark-theme token contract, the PWA head wiring on all 6 pages, the self-hosted-font/offline contract, the identity ramp, and the service-worker precache list) |
 | `npm run shots` | Renders the brand showcase screenshots into `.workbuddy-ai/screenshots/` |
 | `npm run test:e2e -- --suite=<file>` | Run any single script from `scripts/` against a freshly booted server + browser |
 
@@ -502,6 +572,8 @@ No frameworks. No backend. No build step. No internet needed.
 **How theming works:** `brand.js` derives a full design-token palette (brand, brand-dark/darker/light/soft, contrast-safe ink, accent, and 10 sidebar tokens) from just a primary colour, an accent colour, a sidebar style and a radius. It uses HSL maths plus WCAG relative-luminance contrast correction, then writes the result as inline custom properties on `<html>` — which outranks both `:root` and `[data-theme="dark"]`, so the brand wins without `!important`. A tiny duplicated copy in `brand-boot.js` runs as a render-blocking classic script so the palette *and* the app name are in place before the first paint; `test-brand.js` asserts the two implementations produce byte-identical palettes for 242 brand configurations.
 
 **How the app name is applied:** every page ships an empty `#sidebarBrandName`, `#sidebarBrandSub` and logo-initials slot, and a `<title>` with no product name. `brand-boot.js` fills them from the saved brand (falling back to `app.config.js`) before first paint; `shell.js` re-applies them once the business name loads from IndexedDB. `test-config.js` asserts the slots stay empty in the markup, so no name can quietly get baked back in.
+
+**How the invoice gets its branding:** the business name printed on an invoice resolves in this order — a name typed on the invoice itself (`invoice.companyName`, editable in the editor's *Business Name* field), then the Business Profile, then an explicitly set white-label App Name, then the configured fallback. The App Name step only fires when one was actually typed, so the template's own product name can never leak onto a client's invoice. The logo is stored once, as the `logoDataUrl` setting, and folded into the profile by `getCompanyProfile()` in `js/storageService.js` — the invoice preview, the PDF, the print sheet and the WhatsApp share all read `company.logoDataUrl` from that merged profile. Uploads are normalised to a size-bounded PNG (jsPDF cannot embed SVG, and a JPEG/WebP is re-encoded into a far larger file), and `js/export.js` still re-derives the image type from the data URL so a logo stored before that normalisation existed keeps working.
 
 ---
 

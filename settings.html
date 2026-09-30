@@ -6,9 +6,17 @@
   <title>Settings</title>
   <meta name="description" content="Configure your business and preferences.">
   <meta name="theme-color" content="#1B5E20">
-  <link rel="icon" href="favicon.png" type="image/png">
+  <!-- Icons: the SVG is the modern path, the .ico covers legacy /favicon.ico
+       requests, and the 32px PNG stays for the oldest crawlers. -->
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" href="favicon.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Smart Invoice">
   <link rel="stylesheet" href="css/styles.css">
   <!-- Central config: identity, currency, tax and plan defaults. Classic script so brand-boot.js can read it synchronously. -->
   <script src="js/app.config.js"></script>
@@ -114,15 +122,15 @@
                     <div class="field">
                       <label for="brandPrimary">Primary Brand Color</label>
                       <div class="color-field">
-                        <input type="color" id="brandPrimary" value="#2E7D32" aria-label="Primary brand color">
-                        <input type="text" class="input" id="brandPrimaryHex" value="#2E7D32" maxlength="7" spellcheck="false" aria-label="Primary brand color hex value">
+                        <input type="color" id="brandPrimary" value="#1B5E20" aria-label="Primary brand color">
+                        <input type="text" class="input" id="brandPrimaryHex" value="#1B5E20" maxlength="7" spellcheck="false" aria-label="Primary brand color hex value">
                       </div>
                     </div>
                     <div class="field">
                       <label for="brandAccent">Accent Color</label>
                       <div class="color-field">
-                        <input type="color" id="brandAccent" value="#F9A825" aria-label="Accent color">
-                        <input type="text" class="input" id="brandAccentHex" value="#F9A825" maxlength="7" spellcheck="false" aria-label="Accent color hex value">
+                        <input type="color" id="brandAccent" value="#FFC107" aria-label="Accent color">
+                        <input type="text" class="input" id="brandAccentHex" value="#FFC107" maxlength="7" spellcheck="false" aria-label="Accent color hex value">
                       </div>
                     </div>
                   </div>
@@ -144,7 +152,7 @@
                     <div class="field">
                       <label for="brandAppName">App Name</label>
                       <input type="text" class="input" id="brandAppName" maxlength="60" placeholder="Defaults to your business name">
-                      <span class="hint">Shown in the sidebar and browser tab</span>
+                      <span class="hint">Sidebar &amp; browser tab only — invoices use the Business Name below</span>
                     </div>
                     <div class="field">
                       <label for="brandAppTagline">App Tagline</label>
@@ -214,6 +222,7 @@
                 <div class="field col-span-2">
                   <label for="setBusinessName">Business Name</label>
                   <input type="text" class="input" id="setBusinessName" placeholder="Your business name">
+                  <span class="hint">Printed on every invoice, PDF and report</span>
                 </div>
                 <div class="field col-span-2">
                   <label for="setAddress">Address</label>
@@ -262,12 +271,36 @@
                 <div class="field col-span-2">
                   <label for="setLogoInput">Business Logo</label>
                   <div class="flex items-center gap-3">
-                    <div id="setLogoPreview" style="width:64px;height:64px;border-radius:12px;background:var(--surface-2);display:grid;place-items:center;overflow:hidden;border:1px solid var(--border)">
+                    <div id="setLogoPreview" class="asset-preview">
                       <span class="text-faint text-xs">No logo</span>
                     </div>
                     <input type="file" class="input" id="setLogoInput" accept="image/*" style="max-width:260px">
                     <button class="btn btn-sm btn-danger-outline" id="setLogoRemove">Remove</button>
                   </div>
+                </div>
+
+                <div class="field">
+                  <label for="setSignatureInput">Digital Signature</label>
+                  <div class="flex items-center gap-3">
+                    <div id="setSignaturePreview" class="asset-preview">
+                      <span class="text-faint text-xs">None</span>
+                    </div>
+                    <input type="file" class="input" id="setSignatureInput" accept="image/*" style="max-width:220px">
+                    <button class="btn btn-sm btn-danger-outline" id="setSignatureRemove">Remove</button>
+                  </div>
+                  <span class="hint">Printed above the signature line on every invoice</span>
+                </div>
+
+                <div class="field">
+                  <label for="setStampInput">Company Stamp</label>
+                  <div class="flex items-center gap-3">
+                    <div id="setStampPreview" class="asset-preview">
+                      <span class="text-faint text-xs">None</span>
+                    </div>
+                    <input type="file" class="input" id="setStampInput" accept="image/*" style="max-width:220px">
+                    <button class="btn btn-sm btn-danger-outline" id="setStampRemove">Remove</button>
+                  </div>
+                  <span class="hint">Printed in the stamp area — a transparent PNG works best</span>
                 </div>
               </div>
             </div>

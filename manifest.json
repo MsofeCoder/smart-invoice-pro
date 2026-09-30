@@ -6,10 +6,13 @@
   "start_url": "index.html",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "any",
-  "background_color": "#F8F8F8",
-  "theme_color": "#2E7D32",
+  "prefer_related_applications": false,
+  "background_color": "#F4F8F4",
+  "theme_color": "#1B5E20",
   "lang": "en",
+  "dir": "ltr",
   "categories": ["business", "finance", "productivity"],
   "icons": [
     {
@@ -35,6 +38,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    },
+    {
+      "src": "assets/brand/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ],
   "shortcuts": [

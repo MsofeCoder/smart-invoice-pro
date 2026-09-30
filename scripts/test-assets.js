@@ -144,10 +144,10 @@ function decodePNG(buffer) {
 }
 
 const HEX = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
-const GREEN = HEX('#2E7D32');
-const GREEN_DARK = HEX('#1B5E20');
-const GOLD = HEX('#F9A825');
-const CREAM = HEX('#FFF8E1');
+const GREEN = HEX('#1B5E20');      // the Check-Invoice tile
+const GREEN_DEEP = HEX('#0F3D14'); // brand-900, kept for the maskable edge check
+const GOLD = HEX('#FFC107');       // the folded corner
+const CREAM = HEX('#F4F8F4');      // the sheet
 
 const same = (px, rgb, tolerance = 12) =>
   Math.abs(px[0] - rgb[0]) <= tolerance && Math.abs(px[1] - rgb[1]) <= tolerance && Math.abs(px[2] - rgb[2]) <= tolerance;
@@ -221,13 +221,101 @@ for (const [rel] of MASKABLE) {
   ];
   const notGreen = edgePoints.filter(([, x, y]) => {
     const px = img.at(x, y);
-    return !same(px, GREEN) && !same(px, GREEN_DARK);
+    return !same(px, GREEN) && !same(px, GREEN_DEEP);
   });
   assertTrue(
     `${rel} background reaches every edge`,
     notGreen.length === 0,
     notGreen.map(([label, x, y]) => `${label}=${img.at(x, y)}`).join(' '),
   );
+}
+
+/* ==========================================================================
+   2b. The maskable safe zone
+   ==========================================================================
+   Android may crop a maskable icon to a circle or a squircle of roughly 80% of
+   the tile. The document therefore has to sit inside the central 66% — measure
+   its actual bounding box rather than trusting the generator's arithmetic. */
+console.log('\n== Maskable safe zone ==');
+for (const [rel] of MASKABLE) {
+  const { img } = decoded.get(rel);
+  const w = img.width;
+  let minX = w; let minY = w; let maxX = -1; let maxY = -1;
+  for (let y = 0; y < w; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!same(img.at(x, y), CREAM)) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  assertTrue(`${rel} contains the sheet`, maxX >= 0, 'no sheet pixels found');
+  if (maxX < 0) continue;
+  const wRatio = (maxX - minX + 1) / w;
+  const hRatio = (maxY - minY + 1) / w;
+  const cxRatio = (minX + maxX + 1) / 2 / w;
+  const cyRatio = (minY + maxY + 1) / 2 / w;
+  assertTrue(`${rel} mark fits the 66% safe zone (${(wRatio * 100).toFixed(0)}%x${(hRatio * 100).toFixed(0)}%)`,
+    wRatio <= 0.66 && hRatio <= 0.66, `${(wRatio * 100).toFixed(1)}% x ${(hRatio * 100).toFixed(1)}%`);
+  assertTrue(`${rel} mark is centred (${cxRatio.toFixed(2)}, ${cyRatio.toFixed(2)})`,
+    Math.abs(cxRatio - 0.5) < 0.02 && Math.abs(cyRatio - 0.5) < 0.02, `${cxRatio} , ${cyRatio}`);
+}
+
+/* ==========================================================================
+   2c. Brand sources and the legacy .ico
+   ========================================================================== */
+
+console.log('\n== Brand sources ==');
+{
+  const SVGS = [
+    'assets/brand/logo-mark.svg',
+    'assets/brand/logo-horizontal.svg',
+    'assets/brand/logo-horizontal-dark.svg',
+    'assets/brand/logo-mono.svg',
+    'assets/brand/favicon.svg',
+  ];
+  for (const rel of SVGS) {
+    const p = path.join(ROOT, rel);
+    assertTrue(`${rel} exists`, fs.existsSync(p));
+    if (!fs.existsSync(p)) continue;
+    const src = fs.readFileSync(p, 'utf8');
+    assertTrue(`${rel} declares the 96-unit mark viewBox or the lockup viewBox`,
+      /viewBox="0 0 (96|400) 96"/.test(src), (src.match(/viewBox="[^"]*"/) || [''])[0]);
+    assertTrue(`${rel} carries the master geometry`,
+      /M27 18h27l16 16v40/.test(src) || /P\(27, 18\)/.test(src) || /M33 61l10 10 19-21/.test(src));
+  }
+
+  // The mono mark must be ink-agnostic so it can print black and be tinted.
+  const mono = fs.readFileSync(path.join(ROOT, 'assets/brand/logo-mono.svg'), 'utf8');
+  assertTrue('logo-mono uses currentColor', /fill="currentColor"/.test(mono));
+  assertTrue('logo-mono hard-codes no brand hex', !/#(1B5E20|FFC107|A5D6A7|F4F8F4)/i.test(mono));
+
+  const dark = fs.readFileSync(path.join(ROOT, 'assets/brand/logo-horizontal-dark.svg'), 'utf8');
+  assertTrue('the dark lockup uses the light ink for its wordmark', /fill="#EAF3EC"/.test(dark));
+}
+
+console.log('\n== favicon.ico ==');
+{
+  const p = path.join(ROOT, 'assets/icons/favicon.ico');
+  assertTrue('assets/icons/favicon.ico exists', fs.existsSync(p));
+  if (fs.existsSync(p)) {
+    const buf = fs.readFileSync(p);
+    assert('ico reserved word is 0', buf.readUInt16LE(0), 0);
+    assert('ico type is 1 (icon)', buf.readUInt16LE(2), 1);
+    assert('ico holds 3 images', buf.readUInt16LE(4), 3);
+    const sizes = [0, 1, 2].map((i) => buf[6 + i * 16]);
+    assert('ico sizes are 16/32/48', sizes.join(','), '16,32,48');
+    // Every entry must point at a real PNG inside the file.
+    const ok = [0, 1, 2].every((i) => {
+      const off = buf.readUInt32LE(6 + i * 16 + 12);
+      const len = buf.readUInt32LE(6 + i * 16 + 8);
+      return off + len <= buf.length && buf.slice(off, off + 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    });
+    assertTrue('every ico entry is a real PNG in range', ok);
+  }
+  assertTrue('a root favicon.ico exists for legacy /favicon.ico requests',
+    fs.existsSync(path.join(ROOT, 'favicon.ico')));
 }
 
 /* ==========================================================================
