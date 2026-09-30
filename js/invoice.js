@@ -29,6 +29,22 @@ let state = {
   filter: 'all',
   search: '',
   language: 'en',
+  /**
+   * The invoice the preview panel is currently showing, and where it came from.
+   *
+   * The preview can be reached two ways — from the editor (carrying unsaved
+   * edits, via collectInvoice()) or from the list's eye icon (a stored record).
+   * Its actions must operate on THIS, never on the editor form: arriving via
+   * the eye icon leaves the form untouched, so re-collecting from it produced
+   * an invoice with no customer name and the Download PDF button silently did
+   * nothing at all.
+   *
+   * `previewSource` decides what "Edit" means: from a stored record it must
+   * load that invoice into the form, but from the editor it must go straight
+   * back so the unsaved edits are not thrown away.
+   */
+  previewInvoice: null,
+  previewSource: null,
 };
 
 /* ================= Helpers ================= */
@@ -594,7 +610,21 @@ function renderPreview(invoice) {
     <div class="doc-footer">${escapeHTML(businessName)}${c.website ? ' • ' + escapeHTML(c.website) : ''}</div>`;
 }
 
-function openPreview(invoice) {
+/**
+ * Show the preview panel.
+ * @param {Object} invoice - the invoice to display and to act on
+ * @param {'record'|'editor'} source - 'record' when the invoice came from
+ *   storage (list / after a save), 'editor' when it is the live form state and
+ *   may carry unsaved edits.
+ */
+function openPreview(invoice, source = 'record') {
+  // Remember what is on screen so Print / Download / WhatsApp act on the
+  // invoice being previewed rather than on whatever the editor form happens
+  // to hold. Reached via the list's eye icon the form is untouched, and
+  // re-collecting from it used to yield a blank customer name — which the
+  // `if (inv.customerName)` guard turned into a silent no-op.
+  state.previewInvoice = invoice;
+  state.previewSource = source;
   $('#listView').classList.add('hidden');
   $('#editorView').classList.add('hidden');
   $('#previewView').classList.remove('hidden');
@@ -602,6 +632,11 @@ function openPreview(invoice) {
   $('#pageTitle').textContent = `Invoice ${invoice.number || ''}`;
   renderPreview(invoice);
   window.scrollTo(0, 0);
+}
+
+/** The invoice the preview panel is showing, or null if it is not open. */
+function previewTarget() {
+  return state.previewInvoice;
 }
 
 /* ================= Payments ================= */
@@ -833,7 +868,7 @@ function bindEvents() {
   $('#previewBtn')?.addEventListener('click', () => {
     const inv = collectInvoice();
     if (!inv.customerName) { toast('Enter a customer name first', 'error'); return; }
-    openPreview(inv);
+    openPreview(inv, 'editor');
   });
   $('#downloadPdfBtn')?.addEventListener('click', (e) => {
     const inv = collectInvoice();
@@ -846,22 +881,34 @@ function bindEvents() {
     openPaymentModal(enrichInvoice(inv));
   });
 
-  // Preview
+  // Preview — every action here operates on the invoice being SHOWN, not on
+  // the editor form (which is empty when the preview was opened from the list).
   $('#backToEditBtn')?.addEventListener('click', () => {
+    const inv = previewTarget();
+    // Came from a stored record (list's eye icon, or a save): load that invoice
+    // into the editor so the form matches what was on screen. Just revealing
+    // the editor would leave whatever was loaded last — and saving would then
+    // overwrite THAT invoice.
+    if (inv && state.previewSource === 'record' && state.invoices.some((i) => i.id === inv.id)) {
+      openEditor(inv.id);
+      return;
+    }
+    // Came from the editor: go straight back so unsaved edits survive.
     $('#previewView').classList.add('hidden');
     $('#editorView').classList.remove('hidden');
     $('#pageTitle').textContent = state.editingId ? 'Edit Invoice' : 'New Invoice';
   });
   $('#printBtn')?.addEventListener('click', () => {
-    const inv = collectInvoice();
-    if (inv.customerName) handlePrint(inv);
+    const inv = previewTarget();
+    if (inv) handlePrint(inv);
   });
   $('#downloadPdfBtn2')?.addEventListener('click', (e) => {
-    const inv = collectInvoice();
-    if (inv.customerName) handleDownloadPdf(inv, e.currentTarget);
+    const inv = previewTarget();
+    if (inv) handleDownloadPdf(inv, e.currentTarget);
   });
   $('#shareWhatsappBtn')?.addEventListener('click', async (e) => {
-    const inv = enrichInvoice(collectInvoice());
+    const inv = previewTarget();
+    if (!inv) return;
     if (!inv.customerName) { toast('Enter a customer name first', 'error'); return; }
     const cur = state.currencies.find((x) => x.code === inv.currency) || state.currency;
     // Rendering the PDF for a native share can take a moment, so show the
