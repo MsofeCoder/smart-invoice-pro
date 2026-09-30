@@ -18,7 +18,11 @@ import path from 'node:path';
 import { CONFIG, connect, createReporter, sleep } from './lib/cdp.js';
 
 const LIVE = (process.argv[2] || 'https://msofecoder.github.io/smart-invoice-pro/').replace(/\/?$/, '/');
-const EXPECTED_CACHE = process.env.EXPECTED_CACHE || 'v13';
+const EXPECTED_CACHE = process.env.EXPECTED_CACHE || 'v14';
+/* The version the app was on immediately before this deploy. Derived rather
+   than hard-coded so bumping EXPECTED_CACHE cannot leave the stale-cache probe
+   planting a version that is no longer "one behind". */
+const STALE_CACHE = `smart-invoice-pro-v${Math.max(1, Number(EXPECTED_CACHE.replace(/^v/, '')) - 1)}`;
 
 const r = createReporter('Live');
 const { send, evaluate, shot, errors, netFails, state, close } = await connect();
@@ -219,11 +223,11 @@ console.log(`  caches: ${JSON.stringify(sw.keys)} (${sw.cachedCount} entries)`);
 const planted = await evaluate(`(async () => {
   const reg = await navigator.serviceWorker.getRegistration();
   await reg.unregister();
-  const stale = await caches.open('smart-invoice-pro-v12');
+  const stale = await caches.open('${STALE_CACHE}');
   await stale.put(location.pathname + 'stale-probe.txt', new Response('x'));
-  return (await caches.keys()).includes('smart-invoice-pro-v12');
+  return (await caches.keys()).includes('${STALE_CACHE}');
 })()`);
-r.check('planted a stale v12 cache', planted === true, planted);
+r.check(`planted a stale ${STALE_CACHE} cache`, planted === true, planted);
 await goLive('index.html', 5000);
 await waitFor(`!!document.querySelector('#salesChart .bar-col')`);
 // The unregister forced a fresh install, so the shell is downloading again.
@@ -232,7 +236,7 @@ await waitFor(`!!document.querySelector('#salesChart .bar-col')`);
 await waitFor(SW_READY, 120, 500);
 resetLogs();
 const after = await evaluate(`(async () => ({ keys: await caches.keys() }))()`);
-r.check('stale v12 cache was deleted on activate', !after.keys.includes('smart-invoice-pro-v12'), JSON.stringify(after.keys));
+r.check(`stale ${STALE_CACHE} cache was deleted on activate`, !after.keys.includes(STALE_CACHE), JSON.stringify(after.keys));
 r.check(`${EXPECTED_CACHE} cache is present after re-activate`, after.keys.some((k) => k.includes(EXPECTED_CACHE)), JSON.stringify(after.keys));
 
 /* ---------- 6. every asset resolves from the subpath ---------- */
