@@ -497,8 +497,8 @@ Everything runs on Node built-ins plus a headless Chrome — no test framework t
 
 ```bash
 npm test          # 708 static checks: engine, utils, theming, config, plans, icons, markup
-npm run test:e2e  # 410 browser checks: journeys, a11y, polish, responsive sweep, platform
-npm run test:all  # both — 1118 checks
+npm run test:e2e  # 478 browser checks: journeys, a11y, polish, responsive sweep, platform, charts
+npm run test:all  # both — 1186 checks
 ```
 
 | Command | What it covers |
@@ -508,11 +508,13 @@ npm run test:all  # both — 1118 checks
 | `npm run test:a11y` | Radio-group semantics, roving tabindex, arrow-key navigation (including wrap-around), accessible names for every control, keyboard reachability with a custom palette |
 | `npm run test:polish` | Button shine sweep and hover lift, ripple creation + its stacking order, the loading-state contract, recessed switch, custom checkbox, tooltips, and that `prefers-reduced-motion` genuinely neutralises the motion |
 | `npm run test:responsive` | Sweeps 10 widths (320→1600px) × 6 pages, failing on page overflow, crushed grids, clipped text and chart-label collisions — then the dashboard chart ranges (7/30/90 days × 375/768/1024/1440px) for overflow, card overlap, label collisions and `data-density` — then asserts the chrome contract (bottom nav → hamburger drawer → docked sidebar) |
+| `npm run test:charts` | The donut and the bar chart. Geometry (the bar band, the gridline band and the y-axis band must be the *same* box — when they drift every bar is silently short by the x-axis label height); encoding (bar height == value / axis max, so a plausible-looking but non-proportional chart fails); the ledger (every bucket against an independently recomputed daily total, and the donut's per-status counts and amounts against the invoice records); the tallest bar's value label not being clipped by the scroll container; `role="img"` + a generated summary + a visually-hidden data table that matches what was drawn; the entrance animation (bars start collapsed, land at full scale, 60ms stagger) and that `prefers-reduced-motion` writes the final state with no animation armed; both empty states; and zero cross-origin requests, so a CDN chart library cannot creep back in |
 | `npm run test:platform` | Storage adapter contract (including that a failed cloud switch falls back to local), the free-tier gate and upgrade modal, licence activation/persistence/reset, payment-gateway rendering, the WhatsApp share path and its popup-blocked fallback, runtime white-label identity, and the service-worker offline cache |
 | `npm run test:config` | `app.config.js` shape, storage-key prefixing and legacy fallback, plan/gateway declarations, script load order, and the white-label guard |
 | `npm run test:license` | Month keys, quota evaluation (free/pro/unknown plans), licence-key round-trip and rejection, phone normalisation, message templating, `wa.me` URLs |
 | `npm run test:assets` | Decodes every generated PNG and asserts dimensions, alpha coverage, corner rounding, full-bleed maskable variants and palette, the maskable safe zone (the mark must stay inside the 80% circle), the five brand SVG sources, and the multi-resolution `favicon.ico` — this is the guard that caught every icon shipping fully transparent |
 | `npm run test:unit` / `test:brand` / `test:markup` | Individual suites (`test:markup` owns the mobile-first grid contract, the dark-theme token contract, the PWA head wiring on all 6 pages, the self-hosted-font/offline contract, the identity ramp, and the service-worker precache list) |
+| `npm run test:live` | **Post-deploy check against the real Pages URL.** Charts render and animate in production, the service worker is on the expected cache version and reaps old caches, every asset resolves from the `/smart-invoice-pro/` sub-path (no 404s), the theme toggle works, the app still loads with the network cut, and the console is clean. Needs the network and a finished Pages build, so it is deliberately not part of `test:e2e`. Pass a URL to point it somewhere else: `npm run test:live -- https://example.com/` |
 | `npm run shots` | Renders the brand showcase screenshots into `.workbuddy-ai/screenshots/` |
 | `npm run test:e2e -- --suite=<file>` | Run any single script from `scripts/` against a freshly booted server + browser |
 

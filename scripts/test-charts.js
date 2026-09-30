@@ -37,6 +37,24 @@ const waitFor = async (expr, tries = 80, gap = 250) => {
   return false;
 };
 
+/**
+ * Wait until both entrance animations have finished.
+ *
+ * Asserting "the chart is drawn" the moment the elements appear is a race: the
+ * bars are deliberately rendered collapsed and then grow, and the donut writes
+ * its dash on a staggered timeout. For about a second the CORRECT state is an
+ * empty ring and zero-height bars, so a fixed sleep is a flake waiting to
+ * happen on a slow machine. Poll for the settled state instead.
+ */
+const SETTLED = `(() => {
+  const fills = [...document.querySelectorAll('#salesChart .bar-fill')];
+  const arcs = [...document.querySelectorAll('#statusDonut .donut-arc')];
+  return fills.length > 0 && arcs.length > 0
+    && fills.every((f) => getComputedStyle(f).transform === 'matrix(1, 0, 0, 1, 0, 0)')
+    && arcs.every((a) => a.style.strokeDasharray && a.style.strokeDasharray !== '0 100');
+})()`;
+const waitSettled = (tries = 40, gap = 250) => waitFor(SETTLED, tries, gap);
+
 const setWidth = (w, h) =>
   send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false });
 
@@ -48,7 +66,7 @@ await send('Storage.clearDataForOrigin', { origin: CONFIG.origin, storageTypes: 
 await setWidth(1440, 1000);
 await goto('index.html', 2000);
 await waitFor(`!!document.querySelector('#statusDonut .donut-seg') && !!document.querySelector('#salesChart .bar-col')`);
-await sleep(1200);
+await waitSettled();
 
 /* ==================================================================
    Donut
@@ -336,7 +354,7 @@ r.check('bar empty state offers a way forward', empty.bars.cta, empty.bars.cta);
 r.section('Reports page');
 await goto('reports.html', 2000);
 await waitFor(`!!document.querySelector('#revenueChart .bar-col') && !!document.querySelector('#reportDonut .donut-seg')`);
-await sleep(1200);
+await sleep(2600);
 const rep = await evaluate(`(() => {
   const el = document.querySelector('#revenueChart');
   const host = document.querySelector('#reportDonut');
@@ -364,6 +382,7 @@ r.section('Layout at 360px');
 await goto('index.html', 2000);
 await waitFor(`!!document.querySelector('#salesChart .bar-col')`);
 await setWidth(360, 900);
+await waitSettled();
 await sleep(400);
 const ov = await evaluate(`(() => {
   const doc = document.documentElement;
