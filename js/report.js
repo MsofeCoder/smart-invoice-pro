@@ -7,6 +7,7 @@ import { $, $$, escapeHTML, toNumber, toISODate, formatDate, toast, downloadBlob
 import { getInvoices, getCustomers, getProducts, getPayments, getSetting } from './storageService.js';
 import { getDefaultCurrencyCode, getCurrency, formatMoney } from './currency.js';
 import { round2, sum, deriveStatus } from './calculations.js';
+import { STATUS_META, renderStatusDonut, renderBarChart } from './charts.js';
 import { exportCSV } from './export.js';
 import { initShell } from './shell.js';
 import { loadBrandSync, paletteToCss, pdfColors } from './brand.js';
@@ -120,17 +121,8 @@ function renderRevenueChart(invoices) {
   const totals = buckets.map((b) => sum(
     invoices.filter((inv) => inBucket(inv, b.key) && inv.status !== 'draft' && inv.status !== 'cancelled').map((inv) => inv.grandTotal)
   ));
-  const max = Math.max(...totals, 1);
-  el.innerHTML = buckets.map((b, i) => {
-    const h = Math.max(3, Math.round((totals[i] / max) * 100));
-    const isGold = i === buckets.length - 1;
-    return `
-      <div class="bar-col" title="${escapeHTML(formatMoney(totals[i], state.currency))}">
-        <div class="bar-value">${totals[i] > 0 ? escapeHTML(formatMoney(totals[i], state.currency).split(' ')[1]) : ''}</div>
-        <div class="bar-track"><div class="bar-fill ${isGold ? 'gold' : ''}" style="height:${h}%"></div></div>
-        <div class="bar-label">${escapeHTML(b.label)}</div>
-      </div>`;
-  }).join('');
+
+  renderBarChart(el, { buckets, values: totals, currency: state.currency, caption: 'Revenue' });
 }
 
 function renderTopCustomers(invoices) {
@@ -186,41 +178,18 @@ function renderTopProducts(invoices) {
 function renderDonut(invoices) {
   const el = $('#reportDonut');
   if (!el) return;
-  const counts = {
-    paid: invoices.filter((i) => i.status === 'paid').length,
-    partial: invoices.filter((i) => i.status === 'partial').length,
-    unpaid: invoices.filter((i) => i.status === 'unpaid').length,
-    draft: invoices.filter((i) => i.status === 'draft').length,
-  };
-  const total = Math.max(invoices.length, 1);
-  const colors = { paid: '#388E3C', partial: '#F9A825', unpaid: '#F57C00', draft: '#CBD3CB' };
-  const labels = { paid: 'Paid', partial: 'Partial', unpaid: 'Unpaid', draft: 'Draft' };
-  let offset = 0;
-  const segments = Object.entries(counts)
-    .filter(([, v]) => v > 0)
-    .map(([key, value]) => {
-      const pct = (value / total) * 100;
-      const seg = `<circle r="15.915" cx="21" cy="21" fill="transparent" stroke="${colors[key]}" stroke-width="4" stroke-dasharray="${pct} ${100 - pct}" stroke-dashoffset="${offset}" />`;
-      offset -= pct;
-      return seg;
-    }).join('');
-  const legend = Object.entries(counts)
-    .filter(([, v]) => v > 0)
-    .map(([key, value]) => `
-      <div class="lg-item">
-        <span class="lg-dot" style="background:${colors[key]}"></span>
-        <span>${labels[key]}</span>
-        <span class="lg-val">${value}</span>
-      </div>`).join('');
-  el.innerHTML = `
-    <div class="donut">
-      <svg viewBox="0 0 42 42" width="170" height="170">
-        <circle r="15.915" cx="21" cy="21" fill="transparent" stroke="var(--surface-2)" stroke-width="4"></circle>
-        ${segments}
-      </svg>
-      <div class="donut-center"><div><div class="v">${invoices.length}</div><div class="l">Invoices</div></div></div>
-    </div>
-    <div class="legend">${legend}</div>`;
+  /* Same contract as the dashboard ring (js/charts.js owns the drawing) so the
+     two pages can never disagree about what "Paid" looks like. */
+  const buckets = STATUS_META.map((m) => {
+    const rows = invoices.filter((i) => i.status === m.key);
+    return {
+      key: m.key,
+      label: m.label,
+      count: rows.length,
+      amount: sum(rows.map((i) => i.grandTotal)),
+    };
+  });
+  renderStatusDonut(el, { buckets, currency: state.currency, caption: 'Total' });
 }
 
 function renderAll() {

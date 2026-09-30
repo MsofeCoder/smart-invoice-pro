@@ -6,9 +6,17 @@
   <title>Dashboard</title>
   <meta name="description" content="Professional offline invoicing and business management.">
   <meta name="theme-color" content="#1B5E20">
-  <link rel="icon" href="favicon.png" type="image/png">
+  <!-- Icons: the SVG is the modern path, the .ico covers legacy /favicon.ico
+       requests, and the 32px PNG stays for the oldest crawlers. -->
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" href="favicon.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Smart Invoice">
   <link rel="stylesheet" href="css/styles.css">
   <!-- Central config: identity, currency, tax and plan defaults. Classic script so brand-boot.js can read it synchronously. -->
   <script src="js/app.config.js"></script>
@@ -154,14 +162,17 @@
               </div>
             </div>
             <div class="card-body">
-              <div class="chart-bar" id="salesChart" role="img" aria-label="Sales bar chart"></div>
+              <!-- role="img" + the aria-label are set by js/charts.js on the plot
+                   itself, NOT here: a role="img" on this wrapper would make the
+                   visually-hidden data table inside it unreachable. -->
+              <div class="chart-bar" id="salesChart"></div>
             </div>
           </div>
 
           <div class="col-span-4 card">
             <div class="card-header"><h3>Invoice Status</h3></div>
             <div class="card-body">
-              <div class="donut-wrap" id="statusDonut"></div>
+              <div class="donut-host" id="statusDonut"></div>
             </div>
           </div>
 

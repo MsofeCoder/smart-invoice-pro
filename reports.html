@@ -6,9 +6,17 @@
   <title>Reports</title>
   <meta name="description" content="Business reports and analytics.">
   <meta name="theme-color" content="#1B5E20">
-  <link rel="icon" href="favicon.png" type="image/png">
+  <!-- Icons: the SVG is the modern path, the .ico covers legacy /favicon.ico
+       requests, and the 32px PNG stays for the oldest crawlers. -->
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" href="favicon.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Smart Invoice">
   <link rel="stylesheet" href="css/styles.css">
   <!-- Central config: identity, currency, tax and plan defaults. Classic script so brand-boot.js can read it synchronously. -->
   <script src="js/app.config.js"></script>
@@ -139,7 +147,9 @@
         <div class="grid grid-cols-12 gap-4 mt-4">
           <div class="col-span-8 card">
             <div class="card-header"><h3>Revenue Trend</h3></div>
-            <div class="card-body"><div class="chart-bar" id="revenueChart" role="img" aria-label="Revenue chart"></div></div>
+            <!-- role="img" + aria-label are applied by js/charts.js to the plot,
+                 not to this wrapper, so the hidden data table stays reachable. -->
+            <div class="card-body"><div class="chart-bar" id="revenueChart"></div></div>
           </div>
           <div class="col-span-4 card">
             <div class="card-header"><h3>Top Customers</h3></div>
@@ -151,7 +161,7 @@
           </div>
           <div class="col-span-6 card">
             <div class="card-header"><h3>Invoice Status</h3></div>
-            <div class="card-body"><div class="donut-wrap" id="reportDonut"></div></div>
+            <div class="card-body"><div class="donut-host" id="reportDonut"></div></div>
           </div>
         </div>
       </main>
