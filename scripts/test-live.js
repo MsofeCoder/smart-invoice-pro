@@ -21,7 +21,10 @@ const LIVE = (process.argv[2] || 'https://msofecoder.github.io/smart-invoice-pro
 const EXPECTED_CACHE = process.env.EXPECTED_CACHE || 'v13';
 
 const r = createReporter('Live');
-const { send, evaluate, shot, errors, netFails, close } = await connect();
+const { send, evaluate, shot, errors, netFails, state, close } = await connect();
+
+/** Drop accumulated console/network noise, e.g. everything before install finished. */
+const resetLogs = () => { state.logs = []; state.netFails.length = 0; };
 
 const goLive = async (page = 'index.html', wait = 3200) => {
   await send('Page.navigate', { url: LIVE + page });
@@ -139,8 +142,12 @@ const anim = await evaluate(`(() => {
     cols: b.querySelectorAll('.bar-col').length,
   };
 })()`);
-await sleep(2900);
-const settled = await evaluate(`[...document.querySelectorAll('#salesChart .bar-fill')].every((f) => getComputedStyle(f).transform === 'matrix(1, 0, 0, 1, 0, 0)')`);
+// 30 bars x 60ms stagger + 500ms duration = ~2.3s of animation. Poll rather
+// than sleep a fixed amount: a fixed sleep is a coin flip under load.
+const settled = await waitFor(
+  `[...document.querySelectorAll('#salesChart .bar-fill')].every((f) => getComputedStyle(f).transform === 'matrix(1, 0, 0, 1, 0, 0)')`,
+  48, 250,
+);
 r.check('bar animation is armed', anim.grown, anim.grown);
 r.check('bars start collapsed then grow', anim.collapsed, anim.collapsed);
 r.eq('30D renders 30 columns', anim.cols, 30);
@@ -167,6 +174,27 @@ r.check('toggling back restores the theme', theme.restored === theme.before, `${
 
 /* ---------- 5. service worker: current cache, old caches reaped ---------- */
 r.section('Service worker');
+
+/* The install handler caches each shell entry independently (deliberately: one
+   missing asset must not abort the whole install). That means the cache fills
+   PROGRESSIVELY, so measuring straight after load reports a partial precache
+   and the assertion fails for no real reason. Wait for it to finish. */
+const SW_READY = `(async () => {
+  const reg = await navigator.serviceWorker.getRegistration();
+  if (!reg || !reg.active) return false;
+  const keys = await caches.keys();
+  const name = keys.find((k) => k.includes('smart-invoice-pro'));
+  if (!name) return false;
+  const cached = (await (await caches.open(name)).keys()).map((r) => new URL(r.url).pathname);
+  return cached.some((p) => p.endsWith('/js/charts.js'))
+    && cached.some((p) => p.includes('/assets/fonts/'))
+    && cached.some((p) => p.includes('/assets/brand/'));
+})()`;
+const swReady = await waitFor(SW_READY, 120, 500);
+r.check('service worker activated and finished precaching', swReady, swReady);
+// Anything logged while the shell was still downloading is not a runtime defect.
+resetLogs();
+
 const sw = await evaluate(`(async () => {
   const reg = await navigator.serviceWorker.getRegistration();
   const keys = await caches.keys();
@@ -198,6 +226,11 @@ const planted = await evaluate(`(async () => {
 r.check('planted a stale v12 cache', planted === true, planted);
 await goLive('index.html', 5000);
 await waitFor(`!!document.querySelector('#salesChart .bar-col')`);
+// The unregister forced a fresh install, so the shell is downloading again.
+// Let it finish before the next navigation, or in-flight precache fetches are
+// aborted and show up as network failures that say nothing about the app.
+await waitFor(SW_READY, 120, 500);
+resetLogs();
 const after = await evaluate(`(async () => ({ keys: await caches.keys() }))()`);
 r.check('stale v12 cache was deleted on activate', !after.keys.includes('smart-invoice-pro-v12'), JSON.stringify(after.keys));
 r.check(`${EXPECTED_CACHE} cache is present after re-activate`, after.keys.some((k) => k.includes(EXPECTED_CACHE)), JSON.stringify(after.keys));

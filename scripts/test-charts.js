@@ -297,8 +297,12 @@ const mid = await evaluate(`(() => {
     density: el.dataset.density,
   };
 })()`);
-await sleep(2700); // 30 bars x 60ms + 500ms duration
-const settled = await evaluate(`[...document.querySelectorAll('#salesChart .bar-fill')].every((f) => getComputedStyle(f).transform === 'matrix(1, 0, 0, 1, 0, 0)')`);
+// 30 bars x 60ms stagger + 500ms duration = ~2.3s. Poll rather than sleep a
+// fixed amount, which is a coin flip on a loaded machine.
+const settled = await waitFor(
+  `[...document.querySelectorAll('#salesChart .bar-fill')].every((f) => getComputedStyle(f).transform === 'matrix(1, 0, 0, 1, 0, 0)')`,
+  48, 250,
+);
 r.check('animation class applied on render', mid.grown, mid.grown);
 r.check('bars start collapsed (scaleY 0)', mid.transforms.some((t) => /matrix\(1, 0, 0, 0, 0, 0\)/.test(t)), JSON.stringify(mid.transforms));
 r.eq('stagger is 60ms per bar', mid.delays.join(','), '0ms,60ms,120ms,180ms');
