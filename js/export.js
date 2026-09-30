@@ -70,17 +70,17 @@ export function buildQRPayload(invoice, company) {
    The palette is resolved per call from the active brand. Invoices always render
    on white paper, so they use the LIGHT palette regardless of the app's theme. */
 
-let BRAND = [46, 125, 50];          // #2E7D32
-let BRAND_DARK = [27, 94, 32];      // #1B5E20
-let GOLD = [249, 168, 37];          // #F9A825
-let BRAND_INK = [46, 125, 50];      // brand as text on white
-let ACCENT_INK = [209, 131, 6];     // accent as text on white
+let BRAND = [27, 94, 32];           // #1B5E20
+let BRAND_DARK = [7, 23, 8];        // #071708
+let GOLD = [255, 193, 7];           // #FFC107
+let BRAND_INK = [27, 94, 32];       // brand as text on white
+let ACCENT_INK = [173, 130, 0];     // accent as text on white
 let BRAND_CONTRAST = [255, 255, 255]; // text on a brand fill
-const INK = [43, 43, 43];          // #2B2B2B
-const INK_SOFT = [90, 90, 90];     // #5A5A5A
-const INK_FAINT = [138, 138, 138]; // #8A8A8A
-const BORDER = [228, 231, 228];    // #E4E7E4
-const SURFACE_2 = [243, 245, 243]; // #F3F5F3
+const INK = [15, 31, 20];          // #0F1F14
+const INK_SOFT = [76, 95, 82];     // #4C5F52
+const INK_FAINT = [124, 143, 130]; // #7C8F82
+const BORDER = [213, 226, 214];    // #D5E2D6
+const SURFACE_2 = [237, 243, 238]; // #EDF3EE
 
 /** Pull the current brand into the module-level palette. Returns the raw CSS vars. */
 function syncPdfPalette() {
@@ -101,6 +101,54 @@ function loadImage(dataUrl) {
     img.onerror = () => reject(new Error('Image load failed'));
     img.src = dataUrl;
   });
+}
+
+/**
+ * The format label jsPDF needs for `addImage`.
+ *
+ * Settings normalises every newly uploaded logo to PNG, but a logo stored
+ * before that existed can still be a JPEG, WebP or SVG. Telling jsPDF the wrong
+ * type makes it drop the image without raising — the PDF then silently ships
+ * without a logo — so the type is read back off the data URL itself.
+ */
+function imageTypeFromDataUrl(dataUrl) {
+  const match = /^data:image\/([a-z0-9.+-]+)/i.exec(String(dataUrl || ''));
+  switch ((match ? match[1] : 'png').toLowerCase()) {
+    case 'jpg':
+    case 'jpeg':
+    case 'pjpeg':
+      return 'JPEG';
+    case 'webp':
+      return 'WEBP';
+    case 'gif':
+      return 'GIF';
+    case 'bmp':
+      return 'BMP';
+    case 'svg+xml':
+    case 'svg':
+      return 'SVG';
+    default:
+      return 'PNG';
+  }
+}
+
+/**
+ * jsPDF has no SVG renderer, so an SVG logo is rasterised through a canvas
+ * before it is embedded. Without this it vanishes from the PDF while still
+ * showing in the preview — the most confusing possible failure.
+ */
+async function rasteriseSvg(dataUrl, maxPx = 512) {
+  const img = await loadImage(dataUrl);
+  const srcW = img.naturalWidth || img.width || 300;
+  const srcH = img.naturalHeight || img.height || 150;
+  const scale = Math.min(1, maxPx / Math.max(srcW, srcH));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(srcW * scale));
+  canvas.height = Math.max(1, Math.round(srcH * scale));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('canvas 2d context unavailable');
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/png');
 }
 
 /**
@@ -130,27 +178,40 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
   doc.setFillColor(...GOLD);
   doc.rect(0, 6, pageW, 1.2, 'F');
 
-  /* ---- Company block + logo ---- */
+  /* ---- Company block: name, then logo beneath it, then the details ----
+     The letterhead stacks the mark UNDER the business name rather than beside
+     it, so the three parts form one left-aligned column and the column's real
+     bottom — not a guessed offset — decides where the invoice body starts. */
   y = margin + 6;
   const logoSize = 22;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(...BRAND_INK);
+  doc.text(String(company.businessName || 'Business Name'), margin, y + 6);
+
+  let brandY = y + 12;
   if (opts.logoDataUrl) {
     try {
-      const img = await loadImage(opts.logoDataUrl);
+      let logoData = opts.logoDataUrl;
+      let logoType = imageTypeFromDataUrl(logoData);
+      if (logoType === 'SVG') {
+        logoData = await rasteriseSvg(logoData);
+        logoType = 'PNG';
+      }
+      const img = await loadImage(logoData);
       const ratio = img.width / img.height;
       let w = logoSize;
       let h = logoSize;
       if (ratio > 1) { h = logoSize / ratio; } else { w = logoSize * ratio; }
-      doc.addImage(opts.logoDataUrl, 'PNG', margin, y, w, h);
-    } catch {
-      // fall through without logo
+      doc.addImage(logoData, logoType, margin, brandY, w, h);
+      brandY += h + 5;
+    } catch (err) {
+      // Ship the invoice without a logo rather than failing the export, but
+      // say so — a logo that silently vanishes is hard to diagnose.
+      console.warn('[export] logo could not be embedded in the PDF', err);
     }
   }
-
-  const companyX = margin + logoSize + 6;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.setTextColor(...BRAND_INK);
-  doc.text(String(company.businessName || 'Business Name'), companyX, y + 6);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
@@ -164,9 +225,11 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
   if (company.tin) companyLines.push(`TIN: ${company.tin}`);
   if (company.vrn) companyLines.push(`VRN: ${company.vrn}`);
   if (company.regNumber) companyLines.push(`Reg: ${company.regNumber}`);
-  companyLines.slice(0, 7).forEach((line, i) => {
-    doc.text(String(line), companyX, y + 11 + i * 4.2);
+  const companyLinesShown = companyLines.slice(0, 7);
+  companyLinesShown.forEach((line, i) => {
+    doc.text(String(line), margin, brandY + i * 4.2);
   });
+  const brandBottom = brandY + companyLinesShown.length * 4.2;
 
   /* ---- Invoice title + meta (right side) ---- */
   const rightX = pageW - margin;
@@ -195,55 +258,77 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
     metaY += 8.4;
   });
 
-  y = Math.max(y + 11 + companyLines.length * 4.2, metaY) + 8;
+  y = Math.max(brandBottom, metaY) + 8;
 
-  /* ---- Bill To / Ship To ---- */
+  /* ---- Bill To / Ship To ----
+     Both boxes are drawn at the height the TALLER column needs. They used to
+     be a fixed 26 mm while the detail list still drew its 4th line at
+     y + 29.6 — so a customer with an address, phone, email and TIN had the TIN
+     sitting outside the box. Text is wrapped to the column width too, so a long
+     address cannot run past the right edge. */
+  const colGap = 12;
+  const colW = (contentW - colGap) / 2;
+  const partyPadX = 6;
+  const partyTextW = colW - partyPadX * 2;
+  const NAME_LINE_H = 4.6;
+  const DETAIL_LINE_H = 4.0;
+
+  const billDetails = [];
+  if (invoice.customerAddress) billDetails.push(invoice.customerAddress);
+  if (invoice.customerPhone) billDetails.push(`Tel: ${invoice.customerPhone}`);
+  if (invoice.customerEmail) billDetails.push(`Email: ${invoice.customerEmail}`);
+  if (invoice.customerTin) billDetails.push(`TIN: ${invoice.customerTin}`);
+
+  const shipDetails = [];
+  if (invoice.shipToAddress) shipDetails.push(invoice.shipToAddress);
+  if (invoice.shipToPhone) shipDetails.push(`Tel: ${invoice.shipToPhone}`);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  const wrapParty = (lines) => lines.flatMap((line) => doc.splitTextToSize(String(line), partyTextW));
+
+  const billNameLines = doc.splitTextToSize(String(invoice.customerName || 'Customer Name'), partyTextW);
+  const shipNameLines = doc.splitTextToSize(String(invoice.shipToName || invoice.customerName || '—'), partyTextW);
+  const billDetailLines = wrapParty(billDetails);
+  const shipDetailLines = wrapParty(shipDetails);
+
+  // 12 mm to the party name, one line of leading before the details, 4 mm of
+  // bottom padding — measured from the top of the box.
+  const partyHeight = (nameLines, detailLines) =>
+    12 + nameLines.length * NAME_LINE_H
+    + (detailLines.length ? 1 : 0)
+    + detailLines.length * DETAIL_LINE_H
+    + 4;
+  const boxH = Math.max(26, partyHeight(billNameLines, billDetailLines), partyHeight(shipNameLines, shipDetailLines));
+
   doc.setFillColor(...SURFACE_2);
-  doc.roundedRect(margin, y, contentW, 26, 2, 2, 'F');
+  doc.roundedRect(margin, y, contentW, boxH, 2, 2, 'F');
   doc.setDrawColor(...BORDER);
-  doc.roundedRect(margin, y, contentW, 26, 2, 2, 'S');
+  doc.roundedRect(margin, y, contentW, boxH, 2, 2, 'S');
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(...BRAND_INK);
-  doc.text(t('BILL TO', 'MLIPAJI'), margin + 6, y + 7);
+  const drawParty = (x, title, nameLines, detailLines) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...BRAND_INK);
+    doc.text(title, x + partyPadX, y + 7);
 
-  doc.setFontSize(10);
-  doc.setTextColor(...INK);
-  doc.text(String(invoice.customerName || 'Customer Name'), margin + 6, y + 12);
+    doc.setFontSize(10);
+    doc.setTextColor(...INK);
+    let ty = y + 12;
+    nameLines.forEach((line) => { doc.text(line, x + partyPadX, ty); ty += NAME_LINE_H; });
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(...INK_SOFT);
-  const billLines = [];
-  if (invoice.customerAddress) billLines.push(invoice.customerAddress);
-  if (invoice.customerPhone) billLines.push(`Tel: ${invoice.customerPhone}`);
-  if (invoice.customerEmail) billLines.push(`Email: ${invoice.customerEmail}`);
-  if (invoice.customerTin) billLines.push(`TIN: ${invoice.customerTin}`);
-  billLines.slice(0, 4).forEach((line, i) => {
-    doc.text(String(line), margin + 6, y + 17 + i * 4.2);
-  });
+    if (!detailLines.length) return;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...INK_SOFT);
+    ty += 1;
+    detailLines.forEach((line) => { doc.text(line, x + partyPadX, ty); ty += DETAIL_LINE_H; });
+  };
 
-  // Ship To (right half)
-  const shipX = margin + contentW / 2;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(...BRAND_INK);
-  doc.text(t('SHIP TO', 'PALE UNAPELEKA'), shipX + 6, y + 7);
-  doc.setFontSize(10);
-  doc.setTextColor(...INK);
-  doc.text(String(invoice.shipToName || invoice.customerName || '—'), shipX + 6, y + 12);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(...INK_SOFT);
-  const shipLines = [];
-  if (invoice.shipToAddress) shipLines.push(invoice.shipToAddress);
-  if (invoice.shipToPhone) shipLines.push(`Tel: ${invoice.shipToPhone}`);
-  shipLines.slice(0, 3).forEach((line, i) => {
-    doc.text(String(line), shipX + 6, y + 17 + i * 4.2);
-  });
+  drawParty(margin, t('BILL TO', 'MLIPAJI'), billNameLines, billDetailLines);
+  drawParty(margin + colW + colGap, t('SHIP TO', 'PALE UNAPELEKA'), shipNameLines, shipDetailLines);
 
-  y += 34;
+  y += boxH + 8;
 
   /* ---- Items table (AutoTable with pagination) ---- */
   const head = [
@@ -387,40 +472,91 @@ export async function generateInvoicePDF(invoice, company, currency, opts = {}) 
     y += payDetails.length * 4.2 + 8;
   }
 
-  /* ---- QR + signature ---- */
+  /* ---- QR + authorisation (signature & stamp) ----
+     The signature and the stamp are images uploaded in Settings → Business
+     Information. When one has not been supplied the block falls back to a
+     ruled line / a placeholder ring, so an invoice always leaves a place to
+     sign. Everything is laid out in millimetres from `authTop`, which is the
+     top of the whole band. */
   const qrSize = 30;
+  const AUTH_H = 36;
+  let authTop = y;
+  // Keep the whole band on one page instead of letting it run into the footer.
+  if (authTop + AUTH_H > pageH - 22) {
+    doc.addPage();
+    authTop = margin;
+  }
+
   const qrX = pageW - margin - qrSize;
   if (opts.qrDataUrl) {
     try {
-      doc.addImage(opts.qrDataUrl, 'PNG', qrX, y, qrSize, qrSize);
+      doc.addImage(opts.qrDataUrl, 'PNG', qrX, authTop, qrSize, qrSize);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(6.5);
       doc.setTextColor(...INK_FAINT);
-      doc.text(t('Scan to verify', 'Changanua kuthibitisha'), qrX + qrSize / 2, y + qrSize + 4, { align: 'center' });
+      doc.text(t('Scan to verify', 'Changanua kuthibitisha'), qrX + qrSize / 2, authTop + qrSize + 4, { align: 'center' });
     } catch {
       // skip QR if it fails
     }
   }
 
-  // Signature line
-  const sigX = margin;
-  const sigY = y + qrSize - 4;
+  /* Signature: the uploaded mark sits directly above the rule it signs. */
+  const sigW = 62;
+  const sigRuleY = authTop + 28;
+  if (opts.signatureDataUrl) {
+    try {
+      let sigData = opts.signatureDataUrl;
+      let sigType = imageTypeFromDataUrl(sigData);
+      if (sigType === 'SVG') { sigData = await rasteriseSvg(sigData); sigType = 'PNG'; }
+      const img = await loadImage(sigData);
+      const ratio = img.width / img.height;
+      let w = sigW - 6;
+      let h = w / ratio;
+      if (h > 22) { h = 22; w = h * ratio; }
+      doc.addImage(sigData, sigType, margin + 3, sigRuleY - h - 1.5, w, h);
+    } catch (err) {
+      console.warn('[export] signature could not be embedded in the PDF', err);
+    }
+  }
   doc.setDrawColor(...INK_FAINT);
   doc.setLineWidth(0.3);
-  doc.line(sigX, sigY, sigX + 55, sigY);
+  doc.line(margin, sigRuleY, margin + sigW, sigRuleY);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(...INK_SOFT);
-  doc.text(t('Authorized Signature', 'Sahihi Iliyoidhinishwa'), sigX, sigY + 5);
+  doc.text(t('Authorized Signature', 'Sahihi Iliyoidhinishwa'), margin, sigRuleY + 5);
 
-  // Stamp placeholder
-  doc.setDrawColor(...GOLD);
-  doc.setLineWidth(0.6);
-  doc.circle(pageW - margin - qrSize - 18, sigY - 8, 12, 'S');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
-  doc.setTextColor(...ACCENT_INK);
-  doc.text(t('COMPANY STAMP', 'MUHURI WA KAMPUNI'), pageW - margin - qrSize - 18, sigY - 2, { align: 'center' });
+  /* Company stamp. */
+  const stampR = 13;
+  const stampCx = margin + sigW + 36;
+  const stampCy = authTop + 15;
+  if (opts.stampDataUrl) {
+    try {
+      let stampData = opts.stampDataUrl;
+      let stampType = imageTypeFromDataUrl(stampData);
+      if (stampType === 'SVG') { stampData = await rasteriseSvg(stampData); stampType = 'PNG'; }
+      const img = await loadImage(stampData);
+      const ratio = img.width / img.height;
+      let w = stampR * 2;
+      let h = stampR * 2;
+      if (ratio > 1) { h = w / ratio; } else { w = h * ratio; }
+      doc.addImage(stampData, stampType, stampCx - w / 2, stampCy - h / 2, w, h);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(...INK_FAINT);
+      doc.text(t('Company Stamp', 'Muhuri wa Kampuni'), stampCx, authTop + 32, { align: 'center' });
+    } catch (err) {
+      console.warn('[export] stamp could not be embedded in the PDF', err);
+    }
+  } else {
+    doc.setDrawColor(...GOLD);
+    doc.setLineWidth(0.6);
+    doc.circle(stampCx, stampCy, stampR, 'S');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(...ACCENT_INK);
+    doc.text(t('COMPANY STAMP', 'MUHURI WA KAMPUNI'), stampCx, stampCy + 2, { align: 'center' });
+  }
 
   /* ---- Footer on every page ---- */
   const pageCount = doc.internal.getNumberOfPages();
@@ -505,6 +641,8 @@ ${paletteToCss(loadBrandSync(), 'light')}
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: "Segoe UI", Arial, sans-serif; color: #2B2B2B; font-size: 13px; padding: 30px; }
   .header { display: flex; justify-content: space-between; gap: 20px; border-bottom: 3px solid var(--brand); padding-bottom: 18px; margin-bottom: 20px; }
+  /* The mark sits under the business name, matching the PDF and the preview. */
+  .company .logo { display: block; height: 56px; max-width: 170px; object-fit: contain; margin: 6px 0 8px; }
   .company h1 { color: var(--brand-ink); font-size: 20px; margin-bottom: 4px; }
   .company p { color: #5A5A5A; font-size: 11px; line-height: 1.6; }
   .title { text-align: right; }
@@ -533,6 +671,17 @@ ${paletteToCss(loadBrandSync(), 'light')}
   .notes { font-size: 11px; color: #5A5A5A; margin-bottom: 16px; }
   .notes h4 { color: var(--brand-ink); font-size: 10px; letter-spacing: 1px; margin-bottom: 4px; }
   .footer { border-top: 1px solid #E4E7E4; margin-top: 24px; padding-top: 10px; text-align: center; color: #8A8A8A; font-size: 10px; }
+  .sign { display: flex; gap: 60px; align-items: flex-end; margin-top: 44px; }
+  .sign-cell { min-width: 210px; }
+  .sign-cell img { display: block; height: 54px; max-width: 210px; object-fit: contain; margin: 0 0 2px 4px; }
+  .sign-rule { border-top: 1px solid #8A8A8A; }
+  .sign-label { font-size: 10px; color: #8A8A8A; margin-top: 5px; }
+  .stamp-ring {
+    width: 84px; height: 84px; border: 2px solid var(--gold); border-radius: 50%;
+    display: grid; place-items: center; text-align: center; padding: 8px;
+    font-size: 8px; font-weight: 800; letter-spacing: 0.06em; color: var(--gold-ink);
+  }
+  .sign-cell img.stamp { height: 84px; max-width: 130px; margin: 0; }
   @media print { body { padding: 0; } }
 </style>
 </head>
@@ -540,6 +689,7 @@ ${paletteToCss(loadBrandSync(), 'light')}
   <div class="header">
     <div class="company">
       <h1>${escapeHTML(company.businessName || 'Business Name')}</h1>
+      ${opts.logoDataUrl ? `<img class="logo" src="${escapeHTML(opts.logoDataUrl)}" alt="">` : ''}
       ${company.address ? `<p>${escapeHTML(company.address)}</p>` : ''}
       ${[company.region, company.district, company.country].filter(Boolean).length ? `<p>${escapeHTML([company.region, company.district, company.country].filter(Boolean).join(', '))}</p>` : ''}
       ${company.phone ? `<p>Tel: ${escapeHTML(company.phone)}</p>` : ''}
@@ -580,6 +730,18 @@ ${paletteToCss(loadBrandSync(), 'light')}
   <div class="words">${t('Amount in Words:', 'Kiasi kwa Maneno:')} ${escapeHTML(words)}</div>
   <div class="totals"><table><tbody>${totalRows}</tbody></table></div>
   ${invoice.notes ? `<div class="notes"><h4>${t('NOTES', 'MAELEZO')}</h4><p>${escapeHTML(invoice.notes)}</p></div>` : ''}
+  <div class="sign">
+    <div class="sign-cell">
+      ${opts.signatureDataUrl ? `<img src="${escapeHTML(opts.signatureDataUrl)}" alt="">` : ''}
+      <div class="sign-rule"></div>
+      <div class="sign-label">${t('Authorized Signature', 'Sahihi Iliyoidhinishwa')}</div>
+    </div>
+    <div class="sign-cell">
+      ${opts.stampDataUrl
+        ? `<img class="stamp" src="${escapeHTML(opts.stampDataUrl)}" alt=""><div class="sign-label">${t('Company Stamp', 'Muhuri wa Kampuni')}</div>`
+        : `<div class="stamp-ring">${t('COMPANY STAMP', 'MUHURI WA KAMPUNI')}</div>`}
+    </div>
+  </div>
   <div class="footer">${escapeHTML(company.businessName || fallbackBusinessName())}${company.website ? ' • ' + escapeHTML(company.website) : ''}</div>
   <script>window.onload = function(){ window.print(); };</script>
 </body>

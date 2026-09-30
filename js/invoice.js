@@ -5,13 +5,14 @@
 import { $, $$, escapeHTML, sanitizeString, sanitizeMultiline, toNumber, uid, toISODate, addDays, formatDate, toast, openModal, confirmDialog, debounce, withLoading } from './utils.js';
 import {
   getInvoices, saveInvoice, deleteInvoice, getCustomers, getProducts,
-  getPayments, savePayment, deletePayment, getSetting, setSetting,
+  getPayments, savePayment, deletePayment, getSetting, setSetting, getCompanyProfile,
 } from './storageService.js';
 import { getCurrencies, getDefaultCurrencyCode, getCurrency, formatMoney, amountToWords, amountToWordsSwahili } from './currency.js';
 import { calculateInvoiceTotals, calculateBalance, deriveStatus, validateItems, round2 } from './calculations.js';
 import { generateQRDataURL, buildQRPayload, downloadInvoicePDF, printInvoice, exportInvoicesCSV } from './export.js';
 import { initShell } from './shell.js';
 import { fallbackBusinessName } from './config.js';
+import { loadBrandSync, normalizeBrand } from './brand.js';
 import { checkInvoiceQuota, showUpgradeModal, loadLicense } from './licenseService.js';
 import { shareInvoice } from './share.js';
 
@@ -47,6 +48,41 @@ function isOverdue(inv) {
   if (inv.status === 'paid' || inv.status === 'cancelled' || inv.status === 'draft') return false;
   if (!inv.dueDate) return false;
   return inv.dueDate < toISODate();
+}
+
+/**
+ * The business name to print on an invoice.
+ *
+ * Precedence:
+ *   1. a name typed on the invoice itself (`invoice.companyName`) — an override
+ *      for this one document,
+ *   2. the Business Profile (`company.businessName`),
+ *   3. an explicitly set white-label App Name — Settings exposes both "App Name"
+ *      (Brand & Appearance) and "Business Name" (Business Information), so a
+ *      client who fills in only the former still gets their brand on the
+ *      invoice rather than a "Business Name" placeholder,
+ *   4. the configured fallback.
+ *
+ * Step 3 only fires when the App Name was actually typed (it defaults to an
+ * empty string), so it can never leak the template's own product name onto a
+ * customer's invoice.
+ */
+function invoiceBusinessName(invoice, company = state.company) {
+  const override = invoice && invoice.companyName ? String(invoice.companyName).trim() : '';
+  if (override) return override;
+  const profile = company && company.businessName ? String(company.businessName).trim() : '';
+  if (profile) return profile;
+  const appLabel = normalizeBrand(loadBrandSync()).appName;
+  if (appLabel) return appLabel;
+  return fallbackBusinessName();
+}
+
+/**
+ * The company record to render an invoice with: the profile, with the business
+ * name resolved for this invoice and the logo attached.
+ */
+function invoiceCompany(invoice) {
+  return { ...state.company, businessName: invoiceBusinessName(invoice) };
 }
 
 function enrichInvoice(inv) {
@@ -269,11 +305,13 @@ async function openEditor(id = null) {
   populateCurrencySelect();
 
   const company = state.company;
+  // Defaults to the profile; an existing invoice may carry its own override.
   $('#invCompanyName').value = company.businessName || '';
 
   if (id) {
     const inv = state.invoices.find((i) => i.id === id);
     if (inv) {
+      $('#invCompanyName').value = inv.companyName || company.businessName || '';
       $('#invNumber').value = inv.number || '';
       $('#invIssueDate').value = inv.issueDate || toISODate();
       $('#invDueDate').value = inv.dueDate || addDays(inv.issueDate || toISODate(), 30);
@@ -362,6 +400,9 @@ function collectInvoice() {
   return {
     id: state.editingId || uid('inv'),
     number: sanitizeString($('#invNumber').value, 50),
+    // Printed as the invoice's business name. Falls back to the Business
+    // Profile (and then the App Name) at render time when left blank.
+    companyName: sanitizeString($('#invCompanyName').value, 200),
     customerId: customerId || null,
     customerName: sanitizeString($('#invCustomerName').value, 200) || (customer ? customer.name : ''),
     customerPhone: sanitizeString($('#invCustomerPhone').value, 50) || (customer ? customer.phone : ''),
@@ -445,6 +486,7 @@ function renderPreview(invoice) {
   const el = $('#previewDoc');
   if (!el) return;
   const c = state.company;
+  const businessName = invoiceBusinessName(invoice, c);
   const cur = state.currencies.find((x) => x.code === invoice.currency) || state.currency;
   const lang = state.language;
   const t = (en, sw) => (lang === 'sw' ? sw : en);
@@ -472,12 +514,14 @@ function renderPreview(invoice) {
 
   el.innerHTML = `
     <div class="doc-header">
-      <div class="flex gap-4 items-start">
+      <div class="doc-brand">
+        <div class="doc-company">
+          <strong>${escapeHTML(businessName)}</strong>
+        </div>
         <div class="doc-logo">
           ${c.logoDataUrl ? `<img src="${c.logoDataUrl}" alt="Logo">` : '<span class="text-faint text-sm">Business Logo</span>'}
         </div>
         <div class="doc-company">
-          <strong>${escapeHTML(c.businessName || 'Business Name')}</strong>
           ${c.address ? escapeHTML(c.address) + '<br>' : ''}
           ${[c.region, c.district, c.country].filter(Boolean).join(', ') ? escapeHTML([c.region, c.district, c.country].filter(Boolean).join(', ')) + '<br>' : ''}
           ${c.phone ? 'Tel: ' + escapeHTML(c.phone) + '<br>' : ''}
@@ -533,7 +577,21 @@ function renderPreview(invoice) {
       <div class="totals">${totalRows}</div>
     </div>
 
-    <div class="doc-footer">${escapeHTML(c.businessName || fallbackBusinessName())}${c.website ? ' • ' + escapeHTML(c.website) : ''}</div>`;
+    <div class="doc-sign">
+      <div class="doc-sign-cell">
+        ${c.signatureDataUrl ? `<img class="doc-sign-img" src="${c.signatureDataUrl}" alt="Signature">` : ''}
+        <div class="doc-sign-rule"></div>
+        <div class="doc-sign-label">${t('Authorized Signature', 'Sahihi Iliyoidhinishwa')}</div>
+      </div>
+      <div class="doc-sign-cell">
+        ${c.stampDataUrl
+          ? `<img class="doc-stamp-img" src="${c.stampDataUrl}" alt="Company stamp">
+             <div class="doc-sign-label">${t('Company Stamp', 'Muhuri wa Kampuni')}</div>`
+          : `<div class="doc-stamp-ring">${t('COMPANY STAMP', 'MUHURI WA KAMPUNI')}</div>`}
+      </div>
+    </div>
+
+    <div class="doc-footer">${escapeHTML(businessName)}${c.website ? ' • ' + escapeHTML(c.website) : ''}</div>`;
 }
 
 function openPreview(invoice) {
@@ -616,13 +674,30 @@ function openPaymentModal(invoice) {
 }
 
 /* ================= PDF helpers ================= */
+
+/**
+ * The artwork options every export path needs: the logo, the digital signature
+ * and the company stamp. All three live outside the `company` record in
+ * storage, and `getCompanyProfile()` is what folds them back in.
+ */
+function artworkOpts(company, extra = {}) {
+  return {
+    logoDataUrl: company.logoDataUrl || null,
+    signatureDataUrl: company.signatureDataUrl || null,
+    stampDataUrl: company.stampDataUrl || null,
+    ...extra,
+  };
+}
+
 async function getPdfAssets(invoice) {
-  const company = state.company;
+  // `invoiceCompany` carries the invoice's own business-name override and the
+  // artwork, which lives outside the `company` record in storage.
+  const company = invoiceCompany(invoice);
   const cur = state.currencies.find((x) => x.code === invoice.currency) || state.currency;
   const payload = buildQRPayload(invoice, company);
   let qrDataUrl = null;
   try { qrDataUrl = await generateQRDataURL(payload, 220); } catch { /* ignore */ }
-  return { company, currency: cur, opts: { logoDataUrl: company.logoDataUrl || null, qrDataUrl, language: state.language } };
+  return { company, currency: cur, opts: artworkOpts(company, { qrDataUrl, language: state.language }) };
 }
 
 async function handleDownloadPdf(invoice, btn = null) {
@@ -639,7 +714,8 @@ async function handleDownloadPdf(invoice, btn = null) {
 
 function handlePrint(invoice) {
   const cur = state.currencies.find((x) => x.code === invoice.currency) || state.currency;
-  printInvoice(invoice, state.company, cur, { language: state.language });
+  const company = invoiceCompany(invoice);
+  printInvoice(invoice, company, cur, artworkOpts(company, { language: state.language }));
 }
 
 /* ================= Init ================= */
@@ -650,7 +726,9 @@ async function loadData() {
     getProducts(),
     getPayments(),
     getCurrencies(),
-    getSetting('company', {}),
+    // getCompanyProfile merges the logo (stored as its own setting) into the
+    // profile, so `company.logoDataUrl` is populated for the preview and PDF.
+    getCompanyProfile(),
     getSetting('language', 'en'),
   ]);
   state.invoices = invoices;
@@ -790,9 +868,11 @@ function bindEvents() {
     // button's spinner while it happens.
     await withLoading(e.currentTarget, async () => {
       try {
-        const result = await shareInvoice(inv, state.company, cur, {
+        const company = invoiceCompany(inv);
+        const result = await shareInvoice(inv, company, cur, {
           phone: inv.customerPhone,
           language: state.language,
+          pdf: artworkOpts(company, { language: state.language }),
         });
         if (!result.ok) toast(result.reason || 'Could not open WhatsApp', 'error');
         else if (result.via === 'clipboard') toast('Pop-up blocked — invoice message copied to your clipboard', 'info', 5000);

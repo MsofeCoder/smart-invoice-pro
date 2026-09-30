@@ -235,7 +235,7 @@ const rs = JSON.parse(
     `JSON.stringify({ brand: getComputedStyle(document.documentElement).getPropertyValue('--brand').trim(), name: document.querySelector('#sidebarBrandName').textContent })`,
   ),
 );
-r.eq('reset restores default brand', rs.brand, '#2E7D32');
+r.eq('reset restores default brand', rs.brand, '#1B5E20');
 r.check('reset clears custom app name', rs.name !== 'Kilimo Bora Invoicing', rs.name);
 
 /* ============ F. Customers CRUD ============ */
@@ -402,7 +402,7 @@ r.check('QR code generated (branded PNG)', ex.qrOk === true, ex.qrOk);
 r.check('QR payload carries the invoice number', ex.qrPayloadHasNumber === true, ex.qrPayloadHasNumber);
 r.check('invoice PDF generated without error', ex.pdfOk === true, ex.pdfOk);
 r.check('invoice PDF downloaded without error', ex.pdfDownloadOk === true, ex.pdfDownloadOk);
-r.eq('PDF palette matches stored brand', ex.pdfBrand, '46,125,50');
+r.eq('PDF palette matches stored brand', ex.pdfBrand, '27,94,32');
 
 const pdfBlob = await readBlob(0, 'bytes');
 r.check('PDF blob is a real PDF (%PDF magic)', pdfBlob && pdfBlob.head === '%PDF-', JSON.stringify(pdfBlob));
@@ -444,16 +444,16 @@ const printCss = JSON.parse(await evaluate(`(() => {
   return JSON.stringify({ bg: cs.backgroundColor, color: cs.color });
 })()`));
 r.check('print forces a light invoice background', printCss.bg === 'rgb(255, 255, 255)', printCss.bg);
-r.check('print forces dark invoice text', printCss.color === 'rgb(43, 43, 43)', printCss.color);
+r.check('print forces dark invoice text', printCss.color === 'rgb(15, 31, 20)', printCss.color);
 
 await evaluate(`window.dispatchEvent(new Event('beforeprint'))`);
 await sleep(500);
 r.eq('beforeprint swaps in the light brand palette',
-  await evaluate(`getComputedStyle(document.documentElement).getPropertyValue('--brand').trim()`), '#2E7D32');
+  await evaluate(`getComputedStyle(document.documentElement).getPropertyValue('--brand').trim()`), '#1B5E20');
 await evaluate(`window.dispatchEvent(new Event('afterprint'))`);
 await sleep(500);
 r.check('afterprint restores the dark brand',
-  (await evaluate(`getComputedStyle(document.documentElement).getPropertyValue('--brand').trim()`)) !== '#2E7D32');
+  (await evaluate(`getComputedStyle(document.documentElement).getPropertyValue('--brand').trim()`)) !== '#1B5E20');
 
 await send('Emulation.setEmulatedMedia', { media: '' });
 await sleep(300);
@@ -556,6 +556,243 @@ r.check('brand customizer usable on mobile', mb.swatches === 12, mb.swatches);
 r.check('no mobile overflow on settings', mb.overflow === true, mb.overflow);
 await shot('15-mobile-settings.png');
 await send('Emulation.clearDeviceMetricsOverride');
+
+/* ============ P. Invoice branding (logo + business name) ============
+   Regression guard for two failures that were invisible until an invoice was
+   actually produced:
+
+     1. the logo is persisted as its own setting (`logoDataUrl`) but the invoice
+        read it as `company.logoDataUrl` — so Settings showed a logo, the
+        preview showed a "Business Logo" placeholder, and the PDF shipped with
+        no image at all;
+     2. a non-PNG logo (SVG, JPEG, WebP) was handed to jsPDF as PNG, which drops
+        the image without raising.
+
+   Both are only observable end-to-end, which is why they are asserted here. */
+r.section('P. Invoice branding');
+await goto('settings.html', 3000);
+
+await evaluate(`(async () => {
+  // Upload an SVG deliberately — the one format jsPDF cannot embed directly.
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="140"><rect width="240" height="140" fill="#2E7D32"/></svg>';
+  const file = new File([new Blob([svg], { type: 'image/svg+xml' })], 'logo.svg', { type: 'image/svg+xml' });
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  const input = document.querySelector('#setLogoInput');
+  input.files = dt.files;
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+
+  const name = document.querySelector('#setBusinessName');
+  name.value = 'E2E Branded Co';
+  name.dispatchEvent(new Event('input', { bubbles: true }));
+  return true;
+})()`);
+await sleep(1000);
+await evaluate(`(() => { document.querySelector('#saveSettingsBtn').click(); return true; })()`);
+await sleep(900);
+
+const storedBranding = await evaluate(`(async () => {
+  const [ss, db] = await Promise.all([import('./js/storageService.js'), import('./js/db.js')]);
+  const raw = await db.getSetting('logoDataUrl', null);
+  const profile = await ss.getCompanyProfile();
+  return { rawMime: raw ? raw.slice(0, 22) : null, profileHasLogo: !!profile.logoDataUrl, name: profile.businessName };
+})()`);
+r.check('an SVG logo is normalised to PNG on upload', storedBranding.rawMime === 'data:image/png;base64,', storedBranding.rawMime);
+r.check('the business profile exposes the stored logo', storedBranding.profileHasLogo === true, storedBranding.profileHasLogo);
+r.eq('the business profile keeps the business name', storedBranding.name, 'E2E Branded Co');
+
+await goto('invoice.html', 3200);
+await evaluate(`(() => { document.querySelector('[data-action="view"]').click(); return true; })()`);
+await sleep(900);
+const previewBranding = await evaluate(`(() => {
+  const doc = document.querySelector('#previewDoc');
+  const img = doc.querySelector('.doc-logo img');
+  return {
+    logo: !!img && img.src.startsWith('data:image/png'),
+    name: doc.querySelector('.doc-company strong')?.textContent || '',
+    footer: doc.querySelector('.doc-footer')?.textContent || '',
+  };
+})()`);
+r.check('invoice preview renders the logo', previewBranding.logo === true, previewBranding.logo);
+r.eq('invoice preview shows the business name', previewBranding.name, 'E2E Branded Co');
+r.check('invoice footer carries the business name', previewBranding.footer.startsWith('E2E Branded Co'), previewBranding.footer);
+
+const pdfBranding = await evaluate(`(async () => {
+  const [ss, db, exp] = await Promise.all([
+    import('./js/storageService.js'), import('./js/db.js'), import('./js/export.js')
+  ]);
+  const profile = await ss.getCompanyProfile();
+  const inv = (await db.getInvoices())[0];
+  const cur = { code: 'TZS', symbol: 'TZS', name: 'Tanzanian Shilling', decimals: 2, words: 'Tanzanian Shillings', wordsSingular: 'Tanzanian Shilling' };
+  const doc = await exp.generateInvoicePDF(inv, profile, cur, { logoDataUrl: profile.logoDataUrl, language: 'en' });
+  const buf = new Uint8Array(await doc.output('blob').arrayBuffer());
+  const text = new TextDecoder('latin1').decode(buf);
+  return { images: (text.match(/\\/Subtype\\s*\\/Image/g) || []).length };
+})()`);
+r.check('invoice PDF embeds the logo', pdfBranding.images > 0, pdfBranding.images);
+
+/* ============ Q. Invoice layout regressions ============
+   Four defects reported from a real phone test:
+
+     1. the Qty cell in the line-item table was narrower than its own input, so
+        the number and the spinner arrows were clipped;
+     2. the Bill To / Ship To panel had a fixed 26 mm height while the detail
+        list still drew its 4th line below that — a customer with an address,
+        phone, email *and* TIN had the TIN hanging outside the box;
+     3. the logo sat beside the business name instead of beneath it;
+     4. there was nowhere to put a digital signature or a company stamp.
+
+   All four are layout/paint failures, so they are asserted against the DOM and
+   the generated PDF rather than against the code that produces them. */
+r.section('Q. Invoice layout regressions');
+
+/* ---- Q1: line-item inputs are not clipped ---- */
+await goto('invoice.html', 3200);
+await evaluate(`(() => { document.querySelector('#newInvoiceBtn').click(); return true; })()`);
+await sleep(900);
+const lineInputs = await evaluate(`(() => {
+  const out = {};
+  for (const cls of ['line-qty', 'line-price', 'line-disc', 'line-name']) {
+    const el = document.querySelector('.' + cls);
+    out[cls] = el ? { c: el.clientWidth, s: el.scrollWidth } : null;
+  }
+  return out;
+})()`);
+for (const cls of ['line-qty', 'line-price', 'line-disc', 'line-name']) {
+  const m = lineInputs[cls];
+  r.check(`the ${cls.replace('line-', '')} input is not clipped`, !!m && m.s <= m.c + 2, m ? `${m.s}>${m.c}` : 'missing');
+}
+await shot('16-line-item-inputs.png');
+
+/* ---- Q2: signature + stamp upload, stored under their own keys ---- */
+await goto('settings.html', 3000);
+await evaluate(`(async () => {
+  const png = async (w, h, draw) => {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    draw(c.getContext('2d'), w, h);
+    return await (await fetch(c.toDataURL('image/png'))).blob();
+  };
+  const attach = (id, blob, name) => {
+    const dt = new DataTransfer();
+    dt.items.add(new File([blob], name, { type: 'image/png' }));
+    const input = document.querySelector(id);
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  const sig = await png(300, 120, (g) => {
+    g.strokeStyle = '#101828'; g.lineWidth = 5;
+    g.beginPath(); g.moveTo(20, 80); g.bezierCurveTo(80, 10, 160, 110, 280, 50); g.stroke();
+  });
+  const stamp = await png(240, 240, (g) => {
+    g.strokeStyle = '#1D4ED8'; g.lineWidth = 10;
+    g.beginPath(); g.arc(120, 120, 100, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = '#1D4ED8'; g.font = 'bold 30px Arial'; g.textAlign = 'center';
+    g.fillText('PAID', 120, 132);
+  });
+  attach('#setSignatureInput', sig, 'signature.png');
+  attach('#setStampInput', stamp, 'stamp.png');
+  return true;
+})()`);
+await sleep(1200);
+await evaluate(`(() => { document.querySelector('#saveSettingsBtn').click(); return true; })()`);
+await sleep(900);
+
+const artwork = await evaluate(`(async () => {
+  const [ss, db] = await Promise.all([import('./js/storageService.js'), import('./js/db.js')]);
+  const profile = await ss.getCompanyProfile();
+  return {
+    sigKey: (await db.getSetting('signatureDataUrl', null)) ? 'set' : 'missing',
+    stampKey: (await db.getSetting('stampDataUrl', null)) ? 'set' : 'missing',
+    sigProfile: !!profile.signatureDataUrl,
+    stampProfile: !!profile.stampDataUrl,
+  };
+})()`);
+r.eq('the signature is stored under its own setting key', artwork.sigKey, 'set');
+r.eq('the stamp is stored under its own setting key', artwork.stampKey, 'set');
+r.check('the business profile exposes the signature', artwork.sigProfile === true, artwork.sigProfile);
+r.check('the business profile exposes the stamp', artwork.stampProfile === true, artwork.stampProfile);
+
+/* ---- Q3: preview stacks name → logo → contacts, and shows signature + stamp ---- */
+await goto('invoice.html', 3200);
+await evaluate(`(() => { document.querySelector('[data-action="view"]').click(); return true; })()`);
+await sleep(1000);
+const layout = await evaluate(`(() => {
+  const doc = document.querySelector('#previewDoc');
+  const brand = doc.querySelector('.doc-brand');
+  const logo = doc.querySelector('.doc-brand .doc-logo');
+  const name = doc.querySelector('.doc-brand .doc-company strong');
+  const rect = (el) => (el ? el.getBoundingClientRect() : null);
+  return {
+    order: [...brand.children].map((el) => el.className.split(' ')[0]),
+    logoBelowName: !!(logo && name) && rect(logo).top >= rect(name).bottom - 1,
+    signature: !!doc.querySelector('.doc-sign-img'),
+    stamp: !!doc.querySelector('.doc-stamp-img'),
+  };
+})()`);
+r.check('the preview stacks the logo beneath the business name', layout.logoBelowName === true, JSON.stringify(layout.order));
+r.check('the preview renders the digital signature', layout.signature === true, layout.signature);
+r.check('the preview renders the company stamp', layout.stamp === true, layout.stamp);
+await shot('17-preview-artwork.png');
+
+/* ---- Q4: the PDF grows the party box around its contents ---- */
+const pdfLayout = await evaluate(`(async () => {
+  const [ss, db, exp] = await Promise.all([
+    import('./js/storageService.js'), import('./js/db.js'), import('./js/export.js')
+  ]);
+  const profile = await ss.getCompanyProfile();
+  const inv = (await db.getInvoices())[0];
+  const cur = { code: 'TZS', symbol: 'TZS', name: 'Tanzanian Shilling', decimals: 2, words: 'Tanzanian Shillings', wordsSingular: 'Tanzanian Shilling' };
+  const doc = await exp.generateInvoicePDF(inv, profile, cur, {
+    logoDataUrl: profile.logoDataUrl, signatureDataUrl: profile.signatureDataUrl,
+    stampDataUrl: profile.stampDataUrl, language: 'en',
+  });
+  const buf = new Uint8Array(await doc.output('blob').arrayBuffer());
+  const text = new TextDecoder('latin1').decode(buf);
+  const stream = (doc.internal.pages[1] || []).join('\\n');
+
+  // The party panel is the only SURFACE_2 fill — #EDF3EE in js/export.js, which
+  // jsPDF writes as "r g b rg" followed by the rounded-rect path, terminated by
+  // "f". Keep these three floats in step with that constant: they are the
+  // test's only handle on the panel. Restrict the window to that path so later
+  // drawing cannot inflate the extent.
+  const MM = 72 / 25.4;
+  const fills = [...stream.matchAll(/([\\d.]+) ([\\d.]+) ([\\d.]+) rg/g)];
+  const surface = fills.find((m) => {
+    const [rr, gg, bb] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    return Math.abs(rr - 0.929) < 0.012 && Math.abs(gg - 0.953) < 0.012 && Math.abs(bb - 0.933) < 0.012;
+  });
+  let box = null;
+  if (surface) {
+    const end = stream.indexOf('f', surface.index);
+    const seg = stream.slice(surface.index, end > 0 ? end : surface.index + 800);
+    const ys = [...seg.matchAll(/(?:^|\\s)([\\d.]+) ([\\d.]+) (?:m|l|c)\\b/g)].map((x) => Number(x[2]));
+    if (ys.length) box = { top: Math.max(...ys), bottom: Math.min(...ys), heightMm: (Math.max(...ys) - Math.min(...ys)) / MM };
+  }
+
+  // The Bill To TIN is the LAST occurrence — the company's own TIN, when set,
+  // appears earlier in the letterhead.
+  const tin = inv.customerTin || '';
+  let tinY = null;
+  if (tin) {
+    const i = stream.lastIndexOf(tin);
+    if (i >= 0) {
+      const before = stream.slice(Math.max(0, i - 260), i);
+      const td = [...before.matchAll(/([\\d.]+) ([\\d.]+) Td/g)].pop();
+      if (td) tinY = Number(td[2]);
+    }
+  }
+
+  return {
+    images: (text.match(/\\/Subtype\\s*\\/Image/g) || []).length,
+    boxHeightMm: box ? +box.heightMm.toFixed(2) : null,
+    tinFound: tinY !== null,
+    tinInsideBox: (box && tinY !== null) ? tinY > box.bottom && tinY < box.top : null,
+  };
+})()`);
+r.check('the PDF embeds the logo, the signature and the stamp', pdfLayout.images >= 3, pdfLayout.images);
+r.check('the party box grows past the old fixed 26 mm', pdfLayout.boxHeightMm !== null && pdfLayout.boxHeightMm > 26, pdfLayout.boxHeightMm);
+r.check('the Bill To TIN sits inside the party box', pdfLayout.tinInsideBox === true, `found=${pdfLayout.tinFound} inside=${pdfLayout.tinInsideBox}`);
 
 const ok = r.finish();
 process.exit(ok ? 0 : 1);

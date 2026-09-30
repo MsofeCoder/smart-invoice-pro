@@ -404,6 +404,31 @@ export const count = (store) => localCache.count(store);
 export const getSetting = (key, fallback = null) => localCache.getSetting(key, fallback);
 export const getAllSettings = () => localCache.getAllSettings();
 
+/**
+ * The business profile, with the uploaded artwork folded in.
+ *
+ * The logo, signature and stamp are each stored as their own setting rather
+ * than inside the `company` record, but every renderer — the invoice preview,
+ * the PDF, the print sheet — reads `company.logoDataUrl` and friends. Merging
+ * on read keeps one copy of each image in storage (a logo can be 2 MB of
+ * base64) while making the profile self-consistent for callers, so no consumer
+ * has to know where the artwork lives.
+ */
+export async function getCompanyProfile() {
+  const company = (await getSetting('company', {})) || {};
+  const [logo, signature, stamp] = await Promise.all([
+    company.logoDataUrl ? null : getSetting('logoDataUrl', null),
+    company.signatureDataUrl ? null : getSetting('signatureDataUrl', null),
+    company.stampDataUrl ? null : getSetting('stampDataUrl', null),
+  ]);
+  return {
+    ...company,
+    ...(company.logoDataUrl ? {} : logo ? { logoDataUrl: logo } : {}),
+    ...(company.signatureDataUrl ? {} : signature ? { signatureDataUrl: signature } : {}),
+    ...(company.stampDataUrl ? {} : stamp ? { stampDataUrl: stamp } : {}),
+  };
+}
+
 /* ==========================================================================
    Writes — local first, then queued for the cloud when one is active.
    ========================================================================== */

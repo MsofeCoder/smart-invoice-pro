@@ -6,9 +6,17 @@
   <title>Invoices</title>
   <meta name="description" content="Create and manage professional invoices offline.">
   <meta name="theme-color" content="#1B5E20">
-  <link rel="icon" href="favicon.png" type="image/png">
+  <!-- Icons: the SVG is the modern path, the .ico covers legacy /favicon.ico
+       requests, and the 32px PNG stays for the oldest crawlers. -->
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" href="favicon.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Smart Invoice">
   <link rel="stylesheet" href="css/styles.css">
   <!-- Central config: identity, currency, tax and plan defaults. Classic script so brand-boot.js can read it synchronously. -->
   <script src="js/app.config.js"></script>
@@ -161,6 +169,7 @@
                     <div class="field">
                       <label for="invCompanyName">Business Name</label>
                       <input type="text" class="input" id="invCompanyName" placeholder="Your business name">
+                      <span class="hint">Printed on this invoice — edit it here to override your business profile</span>
                     </div>
                     <div class="field">
                       <label for="invCustomer">Customer <span class="req">*</span></label>
@@ -202,15 +211,15 @@
                 </div>
                 <div class="card-body">
                   <div class="table-wrap">
-                    <table class="table" id="itemsTable">
+                    <table class="table items-table" id="itemsTable">
                       <thead>
                         <tr>
-                          <th style="min-width:180px">Product / Description</th>
-                          <th style="width:80px">Qty</th>
-                          <th style="width:110px">Unit Price</th>
-                          <th style="width:90px">Disc %</th>
-                          <th style="width:110px" class="num">Amount</th>
-                          <th style="width:50px"></th>
+                          <th>Product / Description</th>
+                          <th style="width:92px">Qty</th>
+                          <th style="width:116px">Unit Price</th>
+                          <th style="width:84px">Disc %</th>
+                          <th style="width:118px" class="num">Amount</th>
+                          <th style="width:46px"></th>
                         </tr>
                       </thead>
                       <tbody id="itemsBody"></tbody>
