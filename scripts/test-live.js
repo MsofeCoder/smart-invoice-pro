@@ -337,7 +337,96 @@ await evaluate(`document.querySelector('#revenueChart').scrollIntoView({ block: 
 await sleep(700);
 console.log(`  ${path.basename(await shotRegion('#revenueChart', 'live-bars-reports.png'))}`);
 
-/* ---------- 9. nothing shouted into the console ---------- */
+/* ---------- 9. the preview panel and the PDF, in production ----------
+   The two defects this deploy fixes were both only visible in the built app:
+   a dead Download PDF button when the preview was opened from the list, and a
+   signature band that landed on page two. Assert them against the real URL. */
+r.section('Preview panel and PDF (live)');
+
+await setWidth(1440, 1000);
+await goLive('invoice.html', 4200);
+await waitFor(`!!document.querySelector('#invoiceTableBody [data-action="view"]')`);
+
+const livePreview = await evaluate(`(async () => {
+  if (!window.__blobs) {
+    window.__blobs = [];
+    const orig = URL.createObjectURL.bind(URL);
+    URL.createObjectURL = function (b) { try { window.__blobs.push(b); } catch (e) {} return orig(b); };
+  }
+  const row = document.querySelector('#invoiceTableBody [data-action="view"]').closest('tr');
+  const expected = row.children[1].textContent.trim();
+  document.querySelector('#invoiceTableBody [data-action="view"]').click();
+  await new Promise((r) => setTimeout(r, 900));
+  const title = [...document.querySelectorAll('#previewDoc .doc-section-title')]
+    .find((n) => /BILL TO|MLIPAJI/i.test(n.textContent));
+  const nameEl = title && title.parentElement.querySelector('.doc-company strong');
+  const shown = nameEl ? nameEl.textContent.trim() : '';
+  const editorFormName = (document.querySelector('#invCustomerName') || {}).value || '';
+  document.querySelector('#downloadPdfBtn2').click();
+  return { expected, shown, editorFormName, opened: !document.querySelector('#previewView').classList.contains('hidden') };
+})()`);
+r.check('the eye icon opens the preview on the live site', livePreview.opened === true, JSON.stringify(livePreview));
+r.check('the preview shows the row customer while the editor form is empty',
+  livePreview.shown === livePreview.expected && livePreview.editorFormName === '', JSON.stringify(livePreview));
+
+const livePdfReady = await waitFor(`window.__blobs && window.__blobs.length > 0`, 60, 300);
+r.check('Download PDF from the preview produces a file (live)', livePdfReady === true, livePdfReady);
+const livePdf = await evaluate(`(async () => {
+  const b = window.__blobs && window.__blobs[0];
+  if (!b) return null;
+  const buf = new Uint8Array(await b.arrayBuffer());
+  return { size: buf.length, head: Array.from(buf.slice(0, 5)).map((c) => String.fromCharCode(c)).join('') };
+})()`);
+r.check('the live download is a real PDF', !!livePdf && livePdf.head === '%PDF-' && livePdf.size > 3000, JSON.stringify(livePdf));
+
+/* Pagination: build a realistic invoice in the live app and count its pages. */
+const livePages = await evaluate(`(async () => {
+  const [ss, db, exp] = await Promise.all([
+    import('./js/storageService.js'), import('./js/db.js'), import('./js/export.js')
+  ]);
+  const profile = await ss.getCompanyProfile();
+  const stored = (await db.getInvoices())[0];
+  const cur = { code: 'TZS', symbol: 'TZS', name: 'Tanzanian Shilling', decimals: 2, words: 'Tanzanian Shillings', wordsSingular: 'Tanzanian Shilling' };
+  const png = (w, h, c) => { const el = document.createElement('canvas'); el.width = w; el.height = h; const g = el.getContext('2d'); g.fillStyle = c; g.fillRect(0, 0, w, h); return el.toDataURL('image/png'); };
+  const company = {
+    businessName: 'CHICHI NYAMA FRESH', address: 'Plot 45, Nyerere Road',
+    region: 'Dar es Salaam', district: 'Ilala', country: 'Tanzania',
+    phone: '+255 712 000 111', email: 'sales@chichinyama.co.tz',
+    tin: '123-456-789', vrn: '10-123456-A', regNumber: 'REG-99887',
+    website: 'https://atz-website.vercel.app/', whatsapp: '+255 712 000 111',
+    bankName: 'CRDB', bankAccountName: 'RODGERS AMINI SABUNI',
+    bankAccountNumber: '1111222233333', mobileMoney: '+255 765 191 919',
+    logoDataUrl: png(200, 80, '#1B5E20'), signatureDataUrl: png(240, 90, '#0000ff'), stampDataUrl: png(160, 160, '#8B0000'),
+  };
+  const mk = (n) => Array.from({ length: n }, (_, i) => ({
+    id: 'l' + i, productId: 'p' + i, name: 'Line item ' + (i + 1), description: '',
+    qty: 10 + i, unitPrice: 4500 + i * 250, discountRate: i === 1 ? 5 : 0, taxRate: 18,
+    total: (10 + i) * (4500 + i * 250) * (i === 1 ? 0.95 : 1),
+  }));
+  const build = (n) => {
+    const items = mk(n);
+    const subtotal = items.reduce((s, i) => s + i.total, 0);
+    const tax = subtotal * 0.18;
+    return {
+      ...stored, id: 'inv_live_fit', number: 'INV-FIT',
+      customerName: 'RODGERS AMINI SABUNI', customerPhone: '+255 712 345 678',
+      customerEmail: 'rodgers@example.co.tz', customerTin: '123-456-789',
+      customerAddress: 'Kariakoo, Dar es Salaam', shipToName: 'RODGERS AMINI SABUNI',
+      shipToAddress: 'Kariakoo, Dar es Salaam', shipToPhone: '+255 712 345 678',
+      items, subtotal, tax, taxRate: 18, invoiceDiscount: 0, discount: 0, shipping: 0,
+      grandTotal: subtotal + tax, amountPaid: 0, balance: subtotal + tax,
+      notes: 'Thank you for your business. Please settle by the due date.', currency: 'TZS',
+    };
+  };
+  const qr = await exp.generateQRDataURL('INV:INV-FIT', 220);
+  const opts = { logoDataUrl: company.logoDataUrl, signatureDataUrl: company.signatureDataUrl, stampDataUrl: company.stampDataUrl, qrDataUrl: qr, language: 'en' };
+  const count = async (n) => (await exp.generateInvoicePDF(build(n), company, cur, opts)).internal.getNumberOfPages();
+  return { five: await count(5), sixteen: await count(16) };
+})()`);
+r.eq('a 5-line invoice with full artwork is ONE page (live)', livePages.five, 1);
+r.check('a 16-line invoice still paginates (live)', livePages.sixteen > 1, livePages.sixteen);
+
+/* ---------- 10. nothing shouted into the console ---------- */
 r.section('Console');
 const errs = errors();
 r.eq('zero console errors / exceptions', errs.length, 0);
