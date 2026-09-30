@@ -166,7 +166,7 @@ const suites = customSuite
     ? ['screenshots.js']
     : a11yOnly
       ? ['test-a11y.js']
-      : ['test-e2e.js', 'test-a11y.js', 'test-polish.js', 'test-responsive.js', 'test-platform.js', 'test-charts.js'];
+      : ['test-e2e.js', 'test-a11y.js', 'test-polish.js', 'test-responsive.js', 'test-platform.js', 'test-charts.js', 'test-preview.js'];
 const results = [];
 for (const suite of suites) {
   results.push([suite, await run(suite)]);
