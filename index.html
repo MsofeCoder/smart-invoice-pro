@@ -71,6 +71,12 @@
       </nav>
 
       <div class="sidebar-footer">
+        <!-- Onboarding launcher. The pulse is removed by js/onboarding.js once
+             the user has actually seen the tour, so it never nags twice. -->
+        <button type="button" class="guide-card is-new" id="helpBtn" aria-label="Open the guide and manual">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span>Guide<span class="gc-text">How to use this app</span></span>
+        </button>
         <div class="install-card hidden" id="installCard">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <div class="ic-text"><strong>Install App</strong>Works offline on your device</div>
@@ -105,8 +111,16 @@
 
       <main class="content" id="content">
 
+        <!-- First-run affordance. The tour opens itself on a fresh install; this
+             is the way back in once it has been dismissed, and it is the only
+             thing a returning user needs to find the walkthrough again. -->
+        <button type="button" class="guide-hint no-print" data-action="help" data-tour-start>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+          <span><strong>New here?</strong> Take the 9-step guided tour</span>
+        </button>
+
         <!-- Stats -->
-        <div class="grid grid-cols-4 gap-4" id="statsGrid">
+        <div class="grid grid-cols-4 gap-4 mt-3" id="statsGrid" data-tour="stats">
           <div class="card card-pad stat-card">
             <div class="skeleton" style="height:46px;width:46px;border-radius:14px"></div>
             <div class="skeleton mt-3" style="height:26px;width:120px"></div>

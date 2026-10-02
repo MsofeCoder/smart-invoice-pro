@@ -606,5 +606,81 @@ console.log('\n== Dark theme token contract ==');
     /initPrintPalette\s*\(\s*\)/.test(shellSrc));
 }
 
+/* ---------- 8. Onboarding guide contract ----------
+   The guide is the first thing a new client sees, and every way it can break is
+   silent: a launcher dropped from one page, a `data-tour` anchor renamed by a
+   layout tweak, or a missing CSS class means a card floating over an empty
+   screen explaining a button that is not there. js/onboarding.js already skips
+   a step whose anchor has vanished, so nothing throws — it just quietly gets
+   worse. Assert the whole contract statically instead. */
+console.log('\n== Onboarding guide contract ==');
+{
+  const PAGE_FILE = {
+    dashboard: 'index.html',
+    invoice: 'invoice.html',
+    customers: 'customers.html',
+    products: 'products.html',
+    reports: 'reports.html',
+    settings: 'settings.html',
+  };
+  const onboardingSrc = fs.readFileSync(path.join(ROOT, 'js', 'onboarding.js'), 'utf8');
+
+  // 8a. Every page ships the launcher and a way back into the tour.
+  for (const page of PAGES) {
+    const html = fs.readFileSync(path.join(ROOT, page), 'utf8');
+    assert(`${page} has the Guide launcher`, /id="helpBtn"[^>]*class="guide-card"|class="guide-card[^"]*"[^>]*id="helpBtn"/.test(html));
+    assert(`${page} has a tour re-entry affordance`, /data-tour-start/.test(html));
+  }
+
+  // 8b. Every spotlight anchor a step declares must exist on that step's page.
+  //     Parsed straight out of the content array so the two can never drift.
+  const pairs = [...onboardingSrc.matchAll(/page:\s*'([a-z]+)',\s*\n\s*target:\s*(null|'([^']*)')/g)];
+  assert('onboarding.js declares spotlight steps', pairs.length >= 8, pairs.length);
+  const missingAnchors = [];
+  for (const [, page, raw, sel] of pairs) {
+    if (raw === 'null') continue;
+    const file = PAGE_FILE[page];
+    if (!file) { missingAnchors.push(`${page}: unknown page`); continue; }
+    const html = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    // The selector is `[data-tour="x"]`; the contract is the attribute value.
+    const anchor = (sel.match(/data-tour="([^"]+)"/) || [])[1];
+    if (!anchor || !html.includes(`data-tour="${anchor}"`)) {
+      missingAnchors.push(`${file}: ${sel}`);
+    }
+  }
+  assert('every step anchor exists on its page', missingAnchors.length === 0, missingAnchors.join(', '));
+
+  // 8c. The guide is loaded and started by the shared shell.
+  const shellSrc = fs.readFileSync(path.join(ROOT, 'js', 'shell.js'), 'utf8');
+  assert('shell.js imports the onboarding module', /from\s+'\.\/onboarding\.js'/.test(shellSrc));
+  assert('shell.js starts onboarding during initShell', /await\s+initOnboarding\s*\(\s*\)/.test(shellSrc));
+
+  // 8d. The guide ships offline like everything else.
+  const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+  assert('sw precaches js/onboarding.js', /'\.\/js\/onboarding\.js'/.test(sw));
+
+  // 8e. The CSS the engine depends on must exist, or the tour renders unstyled
+  //     (a full-screen white sheet with the card somewhere on it).
+  for (const cls of ['.tour-root', '.tour-block', '.tour-glow', '.tour-card', '.tour-dot', '.help-overlay', '.help-drawer', '.guide-card', '.guide-hint']) {
+    assert(`css defines ${cls}`, definedClasses.has(cls.slice(1)), cls);
+  }
+
+  // 8f. The scrim is a theme token, so the dimming is legible in both themes.
+  const tourScrims = (css.match(/--tour-scrim\s*:/g) || []).length;
+  assert('--tour-scrim is declared in both themes', tourScrims >= 2, tourScrims);
+
+  // 8g. Either surface open must stop the page scrolling behind it.
+  assert('an open guide locks page scroll',
+    /\.tour-active\s*,\s*\.help-active\s*\{[^}]*overflow\s*:\s*hidden/.test(css));
+
+  // 8h. The guide must never print. `.guide-hint` carries `.no-print`, and the
+  //     print block hides the rest by name.
+  const printBlock = cssMedias.find((m) => /\bprint\b/.test(m.cond));
+  const printBody = printBlock ? printBlock.body : '';
+  for (const sel of ['.tour-root', '.help-overlay', '.guide-card', '.no-print']) {
+    assert(`the print stylesheet hides ${sel}`, printBody.includes(sel), sel);
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

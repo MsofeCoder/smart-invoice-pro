@@ -16,6 +16,7 @@ import {
   loadBrand, applyPalette, currentTheme,
   resolveAppName, resolveAppTagline, DEFAULT_BRAND,
 } from './brand.js';
+import { initOnboarding } from './onboarding.js';
 
 /* ================= Brand + Theme =================
    brand-boot.js has already applied the cached palette before first paint.
@@ -388,6 +389,13 @@ export async function initShell() {
   await initLogo();
   await initCurrencySelect();
   await initStockBadge();
+
+  /* The onboarding guide needs the storage layer (it records that the tour has
+     been seen) and the business profile (the tour's copy is generic, but the
+     launcher's pulse state is not), so it runs after both. It is deliberately
+     last: a first-run tour that opens before the dashboard has painted would
+     spotlight skeletons. */
+  await initOnboarding();
 
   const themeBtn = $('#themeToggle');
   if (themeBtn) themeBtn.addEventListener('click', toggleTheme);

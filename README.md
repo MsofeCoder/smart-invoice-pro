@@ -15,6 +15,16 @@ It is a **white-label template**: no product name, logo, colour or tagline is ba
 - **Products** — Name, description, SKU, barcode, category, unit, cost price, selling price, tax, discount, stock, low-stock alerts, image, status; search, filter, edit, delete, CSV export
 - **Reports** — Daily / weekly / monthly / yearly: revenue, profit, outstanding, top customers, top products, invoice status donut; Export PDF, Export CSV, Print
 
+### Onboarding guide & manual
+The first thing a new client sees, and the thing they come back to when they forget which button makes the PDF.
+- **9-step interactive tour** — a spotlight cuts a hole around the thing being explained and a small illustrated card points at it. Steps that live on another page *carry the tour across the navigation* via `?tour=<step>`, so the user is walked from "set your business details" to "send the invoice" without ever being told to go and find a page themselves
+- **Opens itself once** — a fresh install starts the tour on the dashboard after the app has painted. It never opens again unprompted, and landing on a deep link is never interrupted
+- **Built-in manual** — the same nine steps as a scrollable reference, reachable any time from the **Guide** button in the sidebar. A tour is useful once; a manual has to be there on the day someone forgets
+- **Replay from anywhere** — the sidebar Guide button, a page-level "Show me around" banner, or the *Start the guided tour* button inside the manual
+- **Theme- and brand-aware** — the spot illustrations are drawn with `currentColor` and the brand tokens, so they inherit the client's palette in both light and dark mode
+- **Keyboard complete** — `←` / `→` to move, `Esc` to dismiss, focus trapped inside the card and returned to whatever opened the tour
+- **Honest about a changing UI** — a step whose anchor has been removed is *skipped*, never shown pointing at nothing, so a layout change shortens the tour instead of breaking it
+
 ### White-label configuration
 Every business can make the app *theirs* — no code, no rebuild, no designer.
 - **12 one-click presets** — Signature Green, Ocean, Midnight, Royal, Indigo, Teal, Emerald, Forest, Crimson, Rose, Sunset, Slate
@@ -105,6 +115,7 @@ invoice-generator/
 │   ├── share.js            # ★ WhatsApp deep links, native share, phone normalisation
 │   ├── db.js               # IndexedDB layer + legacy-database migration
 │   ├── shell.js            # Shared shell (theme, nav, PWA, identity, currency)
+│   ├── onboarding.js       # ★ Guided tour + built-in manual (first-run walkthrough)
 │   ├── app.js              # Dashboard logic
 │   ├── invoice.js          # Invoice module
 │   ├── customer.js         # Customer module
@@ -137,6 +148,7 @@ invoice-generator/
 │   ├── test-a11y.js        # Keyboard + screen-reader (CDP)
 │   ├── test-polish.js      # Interaction polish + reduced-motion (CDP)
 │   ├── test-responsive.js  # Mobile-first sweep across pages × widths (CDP)
+│   ├── test-onboarding.js  # Guided tour + manual, first-run through replay (CDP)
 │   ├── screenshots.js      # Brand showcase screenshots
 │   └── lib/cdp.js          # Shared DevTools Protocol client
 ├── manifest.json           # PWA manifest
@@ -179,6 +191,8 @@ Then open `http://127.0.0.1:8080`.
 ---
 
 ## 🧰 How to use
+
+> **New here?** The **Guide** button in the sidebar opens a built-in manual, and **Show me around** — or the tour that opens itself on a fresh install — walks you through all nine steps interactively.
 
 1. **Settings** → enter your business info, upload your logo, digital signature and company stamp, set your currency, tax rate and invoice numbering.
 2. **Products** → add the products/services you sell (prices, tax, stock).
@@ -496,9 +510,9 @@ Verified by `scripts/test-responsive.js`, which sweeps **10 widths × 6 pages** 
 Everything runs on Node built-ins plus a headless Chrome — no test framework to install.
 
 ```bash
-npm test          # 708 static checks: engine, utils, theming, config, plans, icons, markup
-npm run test:e2e  # 492 browser checks: journeys, a11y, polish, responsive sweep, platform, charts, preview
-npm run test:all  # both — 1200 checks
+npm test          # 740 static checks: engine, utils, theming, config, plans, icons, markup
+npm run test:e2e  # 560 browser checks: journeys, a11y, polish, responsive sweep, platform, charts, preview, onboarding
+npm run test:all  # both — 1300 checks
 ```
 
 | Command | What it covers |
@@ -515,6 +529,7 @@ npm run test:all  # both — 1200 checks
 | `npm run test:assets` | Decodes every generated PNG and asserts dimensions, alpha coverage, corner rounding, full-bleed maskable variants and palette, the maskable safe zone (the mark must stay inside the 80% circle), the five brand SVG sources, and the multi-resolution `favicon.ico` — this is the guard that caught every icon shipping fully transparent |
 | `npm run test:unit` / `test:brand` / `test:markup` | Individual suites (`test:markup` owns the mobile-first grid contract, the dark-theme token contract, the PWA head wiring on all 6 pages, the self-hosted-font/offline contract, the identity ramp, and the service-worker precache list) |
 | `npm run test:preview` | The preview panel's actions and the PDF's pagination. **Download PDF / Print / WhatsApp must work when the preview was opened from the list's eye icon** — they act on the invoice being shown, not on the editor form (which is untouched on that path, so re-collecting from it produced a nameless invoice and the click was a silent no-op); Print must render the real document; Edit must load *that* invoice into the form, while a preview opened **from** the editor must not throw unsaved edits away; and a normal invoice must stay on **one page** — a 5- and a 6-line invoice with a full letterhead, four payment lines, notes and logo/signature/stamp/QR artwork, while a 16-line invoice still paginates |
+| `npm run test:onboarding` | The guided tour and the manual. A fresh install must open the tour by itself (polling for it, because the dashboard's first-run seeding blocks the main thread for seconds); Next must cross to the page the step lives on and strip `?tour=` from the URL; Back, the progress dots and `←`/`→` must all navigate; `Esc` must close it and record the seen flag so a returning visit does **not** re-open it; the manual must list all nine steps and be able to launch the tour; and **every step's anchor must actually exist on the page it belongs to** — walked page by page, including reduced motion, a 390px phone viewport and dark mode |
 | `npm run test:live` | **Post-deploy check against the real Pages URL.** Charts render and animate in production, the service worker is on the expected cache version and reaps old caches, every asset resolves from the `/smart-invoice-pro/` sub-path (no 404s), the theme toggle works, the app still loads with the network cut, and the console is clean. Needs the network and a finished Pages build, so it is deliberately not part of `test:e2e`. Pass a URL to point it somewhere else: `npm run test:live -- https://example.com/` |
 | `npm run shots` | Renders the brand showcase screenshots into `.workbuddy-ai/screenshots/` |
 | `npm run test:e2e -- --suite=<file>` | Run any single script from `scripts/` against a freshly booted server + browser |

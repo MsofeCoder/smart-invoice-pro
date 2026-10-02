@@ -14,9 +14,38 @@ import { CONFIG, connect, createReporter, sleep } from './lib/cdp.js';
 const r = createReporter('Polish');
 const { send, evaluate, goto } = await connect();
 
+/** Poll until an expression is truthy — the app boots asynchronously. */
+const waitFor = async (expr, tries = 60, gap = 250) => {
+  for (let i = 0; i < tries; i++) {
+    try {
+      if (await evaluate(expr)) return true;
+    } catch { /* mid-navigation */ }
+    await sleep(gap);
+  }
+  return false;
+};
+
 await send('Storage.clearDataForOrigin', { origin: CONFIG.origin, storageTypes: 'all' });
 await send('Emulation.setDeviceMetricsOverride', { width: 1500, height: 980, deviceScaleFactor: 1, mobile: false });
 await goto('index.html', 3600);
+
+/* Two things about a fresh install would otherwise defeat every interaction
+   check below, and both are silent:
+
+     1. initShell() runs asynchronously, and the ripple delegate is only
+        attached once it has. Pressing before then simply produces no ripple.
+     2. The onboarding tour opens itself on a fresh install, and its dimming
+        panels swallow pointer events — so a click aimed at a button lands on
+        the overlay instead.
+
+   Wait for readiness, record the tour as seen, then reload onto a plain page. */
+await waitFor(`window.__APP_READY__ === true`);
+await evaluate(`(async () => { (await import('./js/onboarding.js')).markOnboardingSeen(); return true; })()`);
+await goto('index.html', 3000);
+await waitFor(`window.__APP_READY__ === true`);
+await sleep(300);
+r.check('the page is interactive and free of the first-run tour',
+  (await evaluate(`window.__APP_READY__ === true && !document.querySelector('.tour-root')`)) === true);
 
 /* ---------- Shine sweep is a two-layer background that animates on hover ---------- */
 r.section('Button shine');
@@ -39,9 +68,15 @@ r.check('shine layer is the white sweep', /rgba\(255, 255, 255/.test(b.img), b.i
 r.check('base layer is the brand gradient', /linear-gradient\(135deg/.test(b.img), b.img.slice(-70));
 r.check('shine layer parked off-canvas', /-50%/.test(b.pos), b.pos);
 
+/* Bring the button into view before clicking it. A synthetic mouse event at an
+   off-screen point hits nothing at all — and the dashboard's first .btn-primary
+   now sits just below a 980px fold, so this is not a theoretical concern. */
+await evaluate(`(() => { document.querySelector('.btn-primary').scrollIntoView({ block: 'center' }); return true; })()`);
+await sleep(400);
 const rect = JSON.parse(
-  await evaluate(`(() => { const b = document.querySelector('.btn-primary'); const r = b.getBoundingClientRect(); return JSON.stringify({ x: r.left + r.width/2, y: r.top + r.height/2 }); })()`),
+  await evaluate(`(() => { const b = document.querySelector('.btn-primary'); const r = b.getBoundingClientRect(); return JSON.stringify({ x: r.left + r.width/2, y: r.top + r.height/2, onScreen: r.top >= 0 && r.bottom <= innerHeight }); })()`),
 );
+r.check('the primary button is on screen to click', rect.onScreen === true, JSON.stringify(rect));
 await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: rect.x, y: rect.y, buttons: 0 });
 await sleep(700);
 const hovered = await evaluate(`getComputedStyle(document.querySelector('.btn-primary')).backgroundPosition`);

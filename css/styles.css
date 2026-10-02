@@ -186,6 +186,11 @@
   --topbar-h: 68px;
   --bottomnav-h: 66px;
 
+  /* Dim behind the onboarding spotlight and the help drawer. A token rather
+     than a literal so dark mode can deepen it — on a near-black canvas the
+     light scrim reads as no dimming at all. */
+  --tour-scrim: rgba(18, 24, 18, 0.62);
+
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --speed: 0.22s;
@@ -310,6 +315,10 @@
   --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.5);
   --shadow-lg: 0 18px 50px rgba(0, 0, 0, 0.6);
   --shadow-brand: 0 8px 22px rgba(45, 157, 54, 0.25);
+
+  /* The spotlight scrim: deeper than the light value, because dimming a
+     near-black canvas with a light wash reads as *lightening* it. */
+  --tour-scrim: rgba(0, 0, 0, 0.74);
 }
 
 /* ---------- 2. Reset & Base ---------- */
@@ -1707,7 +1716,273 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; lin
 [data-theme="dark"] .icon-btn.danger:hover { background: var(--danger-soft); color: var(--danger); }
 [data-theme="dark"] .icon-btn.success:hover { background: var(--success-soft); color: var(--success); }
 
-/* ---------- 26. Print ---------- */
+/* ---------- 26. Onboarding guide & help panel ----------
+
+   Two surfaces, one content model (js/onboarding.js):
+
+     .tour-root    the spotlight tour — four dimming panels arranged around a
+                   cut-out rectangle, plus the coach-mark card.
+     .help-overlay the scrollable manual.
+
+   WHY FOUR PANELS AND NOT ONE OVERLAY WITH A PUNCHED HOLE
+     A single overlay dimmed by a big `box-shadow` hole looks identical, but it
+     still covers the element — so tapping the very button the card is pointing
+     at does nothing. Four panels leave a genuinely un-covered rectangle, which
+     is what makes a step like "tap New Invoice" work on a phone.
+--------------------------------------------------------------------------- */
+
+.tour-root {
+  position: fixed; inset: 0; z-index: 300;
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--speed) var(--ease);
+}
+.tour-root.open { opacity: 1; pointer-events: auto; }
+
+/* While the page smooth-scrolls to the next anchor, the dimming is hidden.
+   The panels are positioned in viewport coordinates and would otherwise hold
+   still while the content moves beneath them, so the cut-out appears to slip
+   off the element it is supposed to frame. */
+.tour-root.repositioning .tour-block,
+.tour-root.repositioning .tour-glow { opacity: 0; }
+
+/* Each panel is inert by construction: it only ever paints the area OUTSIDE
+   the cut-out, so clicks that reach a panel are clicks on the dimmed page. */
+.tour-block {
+  position: fixed;
+  background: var(--tour-scrim);
+  transition: all var(--speed) var(--ease);
+}
+
+/* The cut-out itself. Purely decorative — no background, no pointer capture —
+   so the highlighted control stays fully interactive. The ring is drawn with a
+   border rather than a shadow so it cannot bleed into neighbours. */
+.tour-glow {
+  position: fixed; pointer-events: none;
+  border: 2px solid var(--brand);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 4px var(--brand-soft);
+  transition: all var(--speed) var(--ease);
+}
+.tour-glow.hidden { display: none; }
+
+.tour-card {
+  position: fixed;
+  width: min(340px, calc(100vw - 20px));
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 18px;
+  display: flex; flex-direction: column; gap: 10px;
+  transition: left var(--speed) var(--ease), top var(--speed) var(--ease);
+}
+
+.tour-art {
+  width: 100%; height: 76px;
+  display: grid; place-items: center;
+  background: var(--brand-soft);
+  color: var(--brand);
+  border-radius: var(--radius);
+  margin-bottom: 2px;
+}
+.tour-art svg { width: 76px; height: 68px; }
+
+.tour-meta { display: flex; align-items: center; gap: 8px; }
+.tour-step-badge {
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 0.08em;
+  color: var(--brand); text-transform: uppercase;
+}
+.tour-page-badge {
+  font-size: 0.66rem; font-weight: 700;
+  padding: 2px 8px; border-radius: var(--radius-full);
+  background: var(--gold-soft); color: var(--gold-ink);
+}
+.tour-title { font-size: 1.02rem; font-family: var(--font-display); line-height: 1.25; }
+.tour-body { font-size: 0.86rem; color: var(--ink-soft); line-height: 1.55; margin: 0; }
+
+.tour-dots { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tour-dot {
+  width: 8px; height: 8px; padding: 0; border: none; cursor: pointer;
+  border-radius: var(--radius-full);
+  background: var(--border-strong);
+  transition: all var(--speed) var(--ease);
+}
+.tour-dot:hover { background: var(--brand-light); }
+.tour-dot.active { width: 22px; background: var(--brand); }
+
+.tour-actions { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.tour-spacer { flex: 1; }
+
+/* Tighten the coach mark on a phone: it is the only thing on screen, so a
+   stacked layout reads better than a squeezed row. */
+@media (max-width: 480px) {
+  .tour-card { padding: 15px; width: calc(100vw - 16px); }
+  .tour-art { height: 62px; }
+  .tour-art svg { width: 62px; height: 56px; }
+  .tour-actions .btn { flex: 1; }
+}
+
+/* ---------- Help panel (the manual) ---------- */
+
+.help-overlay {
+  position: fixed; inset: 0; z-index: 290;
+  background: var(--tour-scrim);
+  backdrop-filter: blur(4px);
+  display: flex; justify-content: flex-end;
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--speed) var(--ease);
+}
+.help-overlay.open { opacity: 1; pointer-events: auto; }
+
+.help-drawer {
+  width: min(520px, 100vw);
+  height: 100%;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column;
+  transform: translateX(24px);
+  transition: transform var(--speed) var(--ease-spring);
+}
+.help-overlay.open .help-drawer { transform: translateX(0); }
+
+.help-head {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.help-head-icon {
+  width: 40px; height: 40px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: var(--radius); color: var(--brand);
+  background: var(--brand-soft);
+}
+.help-head-icon svg { width: 22px; height: 22px; }
+.help-head-text { flex: 1; min-width: 0; }
+.help-head-text h3 { font-size: 1.05rem; }
+.help-head-text p { font-size: 0.8rem; color: var(--ink-faint); margin: 3px 0 0; }
+
+.help-body { flex: 1; overflow-y: auto; padding: 18px 20px; }
+.help-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+
+.help-step {
+  display: flex; gap: 14px; align-items: flex-start;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.help-step-art {
+  width: 56px; height: 56px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--brand-soft); color: var(--brand);
+}
+.help-step-art svg { width: 40px; height: 38px; }
+.help-step-text { min-width: 0; }
+.help-step-text h4 {
+  font-size: 0.9rem; display: flex; align-items: center; gap: 8px;
+  margin: 0 0 5px;
+}
+.help-step-num {
+  width: 20px; height: 20px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: var(--radius-full);
+  background: var(--brand); color: var(--brand-contrast);
+  font-size: 0.68rem; font-weight: 800;
+}
+.help-step-text p { font-size: 0.83rem; color: var(--ink-soft); line-height: 1.55; margin: 0; }
+.help-step-where {
+  display: inline-block; margin-top: 7px;
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.help-note {
+  margin-top: 18px; padding: 14px;
+  border-radius: var(--radius);
+  background: var(--brand-soft);
+  border: 1px solid var(--border);
+}
+.help-note strong { display: block; font-size: 0.86rem; margin-bottom: 5px; }
+.help-note p { font-size: 0.82rem; color: var(--ink-soft); line-height: 1.55; margin: 0; }
+
+.help-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.help-foot .btn-primary { display: inline-flex; align-items: center; gap: 7px; }
+
+/* ---------- The Guide launcher (sidebar + bottom nav) ---------- */
+
+.guide-card {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; margin-bottom: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius);
+  background: var(--sidebar-card-bg);
+  color: var(--sidebar-fg);
+  font: inherit; font-size: 0.78rem; font-weight: 700;
+  text-align: left; cursor: pointer;
+  transition: background var(--speed) var(--ease);
+}
+.guide-card:hover { background: var(--sidebar-hover); }
+.guide-card svg { width: 18px; height: 18px; flex-shrink: 0; }
+.guide-card .gc-text { display: block; font-weight: 500; opacity: 0.7; font-size: 0.7rem; }
+
+/* A quiet pulse on the sidebar launcher until the tour has been seen once.
+   js/onboarding.js removes `.is-new` from the storage check, so it stops the
+   moment the user has actually looked — not on a fixed timer. */
+.guide-card.is-new { animation: guide-pulse 2.4s var(--ease) infinite; }
+@keyframes guide-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+  50%      { box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.10); }
+}
+
+/* ---------- Page-level "watch the guide" affordance ---------- */
+
+.guide-hint {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all var(--speed) var(--ease);
+}
+.guide-hint:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
+.guide-hint svg { width: 17px; height: 17px; flex-shrink: 0; }
+.guide-hint strong { color: var(--ink); font-weight: 700; }
+
+/* While either surface is open the page must not scroll behind it — otherwise
+   the spotlight drifts away from the element it is highlighting on touch. */
+.tour-active, .help-active { overflow: hidden; }
+
+/* ---------- Dark theme ---------- */
+
+[data-theme="dark"] .tour-glow { box-shadow: 0 0 0 4px var(--accent-glow), 0 0 30px var(--accent-glow); }
+[data-theme="dark"] .tour-art,
+[data-theme="dark"] .help-step-art,
+[data-theme="dark"] .help-head-icon { background: var(--bg-hover); color: var(--brand-light); }
+[data-theme="dark"] .help-note { background: var(--bg-hover); }
+[data-theme="dark"] .tour-page-badge { background: var(--badge-partial-bg); color: var(--badge-partial-text); }
+
+/* ---------- Reduced motion ----------
+   The tour moves a lot of geometry. Collapsing the transitions is enough here:
+   the panels still land in the right place, they just arrive instantly. The
+   launcher pulse is dropped entirely because it is a decorative loop. */
+@media (prefers-reduced-motion: reduce) {
+  .tour-block, .tour-glow, .tour-card, .help-drawer { transition: none !important; }
+  .guide-card.is-new { animation: none !important; }
+}
+
+/* ---------- 27. Print ---------- */
 @media print {
   @page { size: A4 portrait; margin: 12mm; }
 
@@ -1729,7 +2004,8 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; lin
   }
 
   body { background: #fff !important; }
-  .sidebar, .topbar, .bottom-nav, .fab, .toast-container, .no-print, .modal-overlay { display: none !important; }
+  .sidebar, .topbar, .bottom-nav, .fab, .toast-container, .no-print, .modal-overlay,
+  .tour-root, .help-overlay, .guide-card { display: none !important; }
   .main { margin: 0 !important; }
   .content { padding: 0 !important; max-width: none !important; }
   .card, .invoice-doc { box-shadow: none !important; border: none !important; border-radius: 0 !important; }
@@ -1738,7 +2014,7 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; lin
   .print-break { page-break-before: always; }
 }
 
-/* ---------- 27. Subscription, plans & payment gateways ----------
+/* ---------- 28. Subscription, plans & payment gateways ----------
    Mobile-first like everything else: one column at base, three across once
    there is room for them. */
 .plan-grid { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
@@ -1803,7 +2079,7 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; lin
   .plan-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
-/* ---------- 28. Brand identity polish ----------
+/* ---------- 29. Brand identity polish ----------
    The design system applied to the chrome. Kept as one layer that sits ON TOP
    of the component rules above rather than being folded into each of them, so a
    component never has to be rewritten to pick up the brand — and so the
@@ -1856,7 +2132,7 @@ h1, h2, h3, h4, h5, h6,
    3:1 WCAG threshold for non-text UI on both themes. */
 :focus-visible { outline: 2px solid var(--brand-500); outline-offset: 2px; }
 
-/* ---------- 29. Responsive (mobile-first) ----------
+/* ---------- 30. Responsive (mobile-first) ----------
    Base styles above already target the phone. These blocks add capability as
    the viewport grows, so nothing has to be un-done with a max-width override.
 

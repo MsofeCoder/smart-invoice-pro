@@ -20,6 +20,7 @@
     "test:platform": "node scripts/e2e.js --suite=test-platform.js",
     "test:charts": "node scripts/e2e.js --suite=test-charts.js",
     "test:preview": "node scripts/e2e.js --suite=test-preview.js",
+    "test:onboarding": "node scripts/e2e.js --suite=test-onboarding.js",
     "test:live": "node scripts/e2e.js --suite=test-live.js",
     "test:all": "npm test && npm run test:e2e",
     "shots": "node scripts/e2e.js --shots"
