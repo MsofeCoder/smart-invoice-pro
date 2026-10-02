@@ -54,10 +54,22 @@ export function toMonthKey(value) {
   return Number.isNaN(parsed.getTime()) ? '' : toMonthKey(parsed);
 }
 
-/** The month an invoice belongs to for quota purposes. */
+/**
+ * The month an invoice belongs to for quota purposes.
+ *
+ * The user-visible `issueDate` (a local `YYYY-MM-DD`) is preferred over
+ * `createdAt`. `createdAt` is a UTC ISO stamp, and `toMonthKey()` slices it
+ * literally, so an invoice created at 01:30 local on the 1st landed in the
+ * *previous* month for any UTC+ timezone — Tanzania is UTC+3. That let up to
+ * ten invoices a month slip past the free-tier cap and made the "x of 10 used"
+ * figure disagree with the user's own calendar.
+ *
+ * `issueDate` carries no offset to misinterpret, so the bucket matches the date
+ * the business sees on the invoice and on screen.
+ */
 export function invoiceMonthKey(invoice) {
   if (!invoice) return '';
-  return toMonthKey(invoice.createdAt) || toMonthKey(invoice.issueDate);
+  return toMonthKey(invoice.issueDate) || toMonthKey(invoice.createdAt);
 }
 
 /** How many invoices count against the quota for `monthKey`. */

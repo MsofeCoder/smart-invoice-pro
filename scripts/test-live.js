@@ -17,8 +17,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { CONFIG, connect, createReporter, sleep } from './lib/cdp.js';
 
-const LIVE = (process.argv[2] || 'https://msofecoder.github.io/smart-invoice-pro/').replace(/\/?$/, '/');
-const EXPECTED_CACHE = process.env.EXPECTED_CACHE || 'v14';
+if (!process.env.E2E_ISOLATED_PROFILE) throw new Error('Use npm run test:live with an isolated browser profile');
+const LIVE = ((process.argv[2] === '--local' ? CONFIG.origin + '/dist/site/' : process.argv[2]) || 'https://msofecoder.github.io/smart-invoice-pro/').replace(/\/?$/, '/');
+const workerSource = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+const EXPECTED_CACHE = process.env.EXPECTED_CACHE || workerSource.match(/const CACHE_NAME = '[^']+-(v\d+)'/)[1];
 /* The version the app was on immediately before this deploy. Derived rather
    than hard-coded so bumping EXPECTED_CACHE cannot leave the stale-cache probe
    planting a version that is no longer "one behind". */
@@ -81,6 +83,8 @@ const shotRegion = async (selector, file) => {
 
 await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
 await goLive('index.html', 4000);
+await evaluate(`(async () => { const db = await import('./js/db.js'); await db.seedSampleData(); })()`);
+await goLive('index.html', 2000);
 await waitFor(`!!document.querySelector('#statusDonut .donut-seg') && !!document.querySelector('#salesChart .bar-col')`);
 await waitSettled();
 

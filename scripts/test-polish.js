@@ -28,6 +28,8 @@ const waitFor = async (expr, tries = 60, gap = 250) => {
 await send('Storage.clearDataForOrigin', { origin: CONFIG.origin, storageTypes: 'all' });
 await send('Emulation.setDeviceMetricsOverride', { width: 1500, height: 980, deviceScaleFactor: 1, mobile: false });
 await goto('index.html', 3600);
+await evaluate(`(async () => { const db = await import('./js/db.js'); await db.seedSampleData(); })()`);
+await goto('index.html', 2000);
 
 /* Two things about a fresh install would otherwise defeat every interaction
    check below, and both are silent:

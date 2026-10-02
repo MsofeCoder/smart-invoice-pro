@@ -6,6 +6,23 @@ It is a **white-label template**: no product name, logo, colour or tagline is ba
 
 ---
 
+
+## Client delivery and release checks
+
+Fresh installations start with an empty invoice ledger, customer list and product list. Demo records are explicit test fixtures and are never automatically inserted into client data. Existing installations retain their records; review and remove any previously created sample invoices before starting real business use.
+
+Numeric fields use the browser's number-input rules. Decimal quantities such as `0.125` remain fractional. Use an ungrouped price such as `1234.56` in invoice fields; formatted strings such as `1.234,56` are not portable input for a native numeric field. Invalid native numeric fields must be corrected before saving.
+
+Backups contain all five business-data stores. Restore validates the application identifier, version, store arrays and unique primary keys, then replaces the dataset in one IndexedDB transaction. Validation errors and transaction failures preserve existing records. Successful restore removes pending sync operations for the replaced dataset.
+
+Run `npm run test:all` and `npm audit` before release. The browser run uses a temporary browser profile and separate localhost ports; it includes `npm run test:release` regressions for amounts, restore rollback, empty ledgers and mobile notifications. CI runs static tests, browser tests, a packaged-site smoke test and a dependency audit before deploying. Chrome setup follows the [setup-chrome action documentation](https://github.com/browser-actions/setup-chrome).
+
+Build the application-only artifact with `npm run package:site` (`dist/site/`). Run `npm run test:staging` to verify that artifact from a subdirectory, including service-worker activation, old-cache cleanup, offline reload and all asset paths. CI publishes this package rather than the repository tree.
+
+After deployment, run `npm run test:live -- https://your-host.example/app/` against the exact HTTPS URL. Its expected service-worker version is derived from `sw.js`; current cache is v18. This checks the deployed release, including assets, cache updates, offline loading and console errors.
+
+This release supports a local, offline invoicing workflow. Browser data belongs to its browser profile and site origin: keep exported backups, especially before changing devices or domains. Cloud sync, payment processing and enforceable server authentication/licensing require a separately implemented backend; they are not enabled by this static release.
+
 ## ✨ Features
 
 ### Core
@@ -78,7 +95,7 @@ A passcode-gated desk at `admin.html` for the person issuing licences.
 > The passcode is a **speed bump, not a security control** — it keeps a curious end user out of the key ledger, nothing more. It is documented as such in the source. Real key issuance belongs on a server.
 
 ### Financial engine
-- Exact **2-decimal decimal arithmetic** using integer-based rounding — floating-point errors are eliminated
+- **2-decimal monetary totals**, with decimal quantities preserved and explicit rounding
 - Formulas: `Subtotal = Σ(Qty × Unit Price)`; `Tax = Subtotal × TaxRate`; `Grand Total = Subtotal + Tax + Shipping − Discount`; `Balance = Grand Total − Amount Paid`
 - Partial payments automatically recompute status (unpaid / partial / paid)
 - **Currency engine**: TZS, USD, EUR, KES, GBP + unlimited custom currencies; editable offline exchange rates; instant currency switching
@@ -177,6 +194,7 @@ invoice-generator/
 │   ├── test-license.js     # Plans, quota, licence keys, phone/message helpers
 │   ├── test-admin.js       # Key ledger + feedback helpers (no browser needed)
 │   ├── test-assets.js      # Icon decoding, alpha coverage, palette
+│   ├── test-csv.js         # CSV escaping + spreadsheet formula-injection guard
 │   ├── test-markup.js      # Markup / CSS / SW / a11y contracts
 │   ├── test-e2e.js         # Browser end-to-end (CDP)
 │   ├── test-a11y.js        # Keyboard + screen-reader (CDP)
@@ -545,14 +563,14 @@ Verified by `scripts/test-responsive.js`, which sweeps **10 widths × 6 pages** 
 Everything runs on Node built-ins plus a headless Chrome — no test framework to install.
 
 ```bash
-npm test          # 997 static checks: engine, utils, theming, config, plans, licence, key ledger, icons, markup
+npm test          # 1041 static checks: engine, utils, theming, config, plans, licence, key ledger, icons, CSV escaping, markup
 npm run test:e2e  # 706 browser checks: journeys, a11y, polish, responsive sweep, platform, charts, preview, onboarding, features
-npm run test:all  # both — 1703 checks
+npm run test:all  # both — 1780 checks
 ```
 
 | Command | What it covers |
 |---|---|
-| `npm test` | Financial math, XSS escaping, colour math, brand-boot parity across 242 brand configurations, WCAG AA across all presets, config shape, storage-key semantics, white-label guard, quota arithmetic, licence keys, key-ledger generation (no duplicates), feedback composition, phone normalisation, icon decoding, CSS/markup contracts, the mobile-first grid contract, the dark-theme token contract, service-worker precache integrity, accessible names |
+| `npm test` | Financial math, XSS escaping, **CSV escaping including the spreadsheet formula-injection guard (`=`, `+`, `-`, `@`, TAB, CR)**, localised-number parsing, colour math, brand-boot parity across 242 brand configurations, WCAG AA across all presets, config shape, storage-key semantics, white-label guard, quota arithmetic **and its month-boundary behaviour across timezones**, licence keys, key-ledger generation (no duplicates), feedback composition, phone normalisation, icon decoding, CSS/markup contracts, the mobile-first grid contract, the dark-theme token contract, service-worker precache integrity, accessible names |
 | `npm run test:e2e` | Every page loads clean; brand apply/persist/reset; flash-free first paint; dark mode; customer & product CRUD; invoice creation with verified totals; the free-tier cap and upgrade modal; reports; PDF/CSV/QR export (asserts the `%PDF` magic bytes); **invoice branding — the business logo and name must reach the preview, the footer and the embedded PDF, and a non-PNG logo upload must be normalised**; **invoice layout regressions — line-item inputs must not clip, the logo must stack beneath the business name, the Bill To / Ship To panel must grow around its contents so the TIN never spills, and the uploaded signature and stamp must reach both the preview and the PDF**; WhatsApp link construction; backup/restore; currency switching; genuine offline mode |
 | `npm run test:a11y` | Radio-group semantics, roving tabindex, arrow-key navigation (including wrap-around), accessible names for every control, keyboard reachability with a custom palette. Its name model excludes `aria-hidden` subtrees, as the real accessible-name algorithm does — otherwise a decorative `Pro` tag counts as part of the name and a gated field is reported as "App Name Pro" |
 | `npm run test:polish` | Button shine sweep and hover lift, ripple creation + its stacking order, the loading-state contract, recessed switch, custom checkbox, tooltips, and that `prefers-reduced-motion` genuinely neutralises the motion |
@@ -563,10 +581,12 @@ npm run test:all  # both — 1703 checks
 | `npm run test:license` | Month keys, quota evaluation (free/pro/unknown plans), licence-key round-trip and rejection, phone normalisation, message templating, `wa.me` URLs |
 | `npm run test:admin` | The key ledger and the feedback helpers, with no browser involved — which is the point: **a batch of 2, 5, 20 or 50 keys must contain no duplicates, and a second batch must not re-mint the first**. Also `hashPasscode`, `sortKeys`, `keyStatus`, `stampToISODate`, `normaliseRating`, `summariseFeedback`, the composed WhatsApp/email message, and the config blocks the console reads |
 | `npm run test:assets` | Decodes every generated PNG and asserts dimensions, alpha coverage, corner rounding, full-bleed maskable variants and palette, the maskable safe zone (the mark must stay inside the 80% circle), the five brand SVG sources, and the multi-resolution `favicon.ico` — this is the guard that caught every icon shipping fully transparent |
-| `npm run test:unit` / `test:brand` / `test:markup` | Individual suites (`test:markup` owns the mobile-first grid contract, the dark-theme token contract, the PWA head wiring on all 6 pages, the self-hosted-font/offline contract, the identity ramp, and the service-worker precache list) |
+| `npm run test:unit` / `test:brand` / `test:csv` / `test:markup` | Individual suites (`test:csv` owns CSV syntax and the spreadsheet formula-injection guard; `test:markup` owns the mobile-first grid contract, the dark-theme token contract, the PWA head wiring on all 6 pages, the self-hosted-font/offline contract, the identity ramp, and the service-worker precache list) |
 | `npm run test:preview` | The preview panel's actions and the PDF's pagination. **Download PDF / Print / WhatsApp must work when the preview was opened from the list's eye icon** — they act on the invoice being shown, not on the editor form (which is untouched on that path, so re-collecting from it produced a nameless invoice and the click was a silent no-op); Print must render the real document; Edit must load *that* invoice into the form, while a preview opened **from** the editor must not throw unsaved edits away; and a normal invoice must stay on **one page** — a 5- and a 6-line invoice with a full letterhead, four payment lines, notes and logo/signature/stamp/QR artwork, while a 16-line invoice still paginates |
-| `npm run test:onboarding` | The guided tour and the manual. A fresh install must open the tour by itself (polling for it, because the dashboard's first-run seeding blocks the main thread for seconds); Next must cross to the page the step lives on and strip `?tour=` from the URL; Back, the progress dots and `←`/`→` must all navigate; `Esc` must close it and record the seen flag so a returning visit does **not** re-open it; the manual must list all nine steps and be able to launch the tour; and **every step's anchor must actually exist on the page it belongs to** — walked page by page, including reduced motion, a 390px phone viewport and dark mode |
+| `npm run test:onboarding` | The guided tour and the manual. A fresh install must open the tour by itself (polling until the dashboard and tour are ready); Next must cross to the page the step lives on and strip `?tour=` from the URL; Back, the progress dots and `←`/`→` must all navigate; `Esc` must close it and record the seen flag so a returning visit does **not** re-open it; the manual must list all nine steps and be able to launch the tour; and **every step's anchor must actually exist on the page it belongs to** — walked page by page, including reduced motion, a 390px phone viewport and dark mode |
 | `npm run test:features` | **The monetization and admin layer, driven end to end in a real browser.** Free-plan gates (app name, signature/stamp, monthly download) are locked *and* open the upgrade prompt when pressed, while the logo, the Business Name and the daily/weekly/yearly exports stay free; Pro unlocks all three and leaves nothing tagged. The feedback form's stars, keyboard access, local persistence, send stage and one-shot nudge. Inline customer creation: the **+ New** form writes to the customer database, and a plain invoice save auto-creates the customer and links the invoice — while re-saving does **not** duplicate them. And the admin console: passcode gate, overview, key generation (asserting every key is distinct and a second batch does not repeat the first), verification, activation, the ledger, the feedback inbox, and a passcode change that must invalidate the old one. **Two checks here exist because the obvious version passed for the wrong reason**: the daily CSV export must actually reach the disk before the monthly one is measured against it — with an empty ledger `exportCSV` returns early, so "blocked" and "allowed" looked identical — and a deliberately refused clipboard must **not** record the review as sent |
+| `npm run test:release` | 33 browser regressions for fractional amounts, restore rollback and data preservation, empty ledgers, and long mobile notifications |
+| `npm run test:staging` | 50 smoke checks against the packaged site from a subdirectory, including offline reload, cache cleanup, asset paths, theme, charts and PDF preview |
 | `npm run test:live` | **Post-deploy check against the real Pages URL.** Charts render and animate in production, the service worker is on the expected cache version and reaps old caches, every asset resolves from the `/smart-invoice-pro/` sub-path (no 404s), the theme toggle works, the app still loads with the network cut, and the console is clean. Needs the network and a finished Pages build, so it is deliberately not part of `test:e2e`. Pass a URL to point it somewhere else: `npm run test:live -- https://example.com/` |
 | `npm run shots` | Renders the brand showcase screenshots into `.workbuddy-ai/screenshots/` |
 | `npm run test:e2e -- --suite=<file>` | Run any single script from `scripts/` against a freshly booted server + browser |
@@ -588,7 +608,7 @@ The E2E launcher finds Chrome or Edge automatically (override with `E2E_BROWSER`
 | Balance | `Grand total − Amount paid` |
 | Status | `paid` if balance ≤ 0; `partial` if paid > 0; else `unpaid` |
 
-All values are rounded to exactly 2 decimal places using safe integer math (`Math.round((n + ε) × 100) / 100`).
+Monetary totals are rounded to 2 decimal places (`Math.round((n + ε) × 100) / 100`).
 
 ---
 

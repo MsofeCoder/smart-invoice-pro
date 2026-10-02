@@ -1,8 +1,8 @@
 # Deploy the static PWA to GitHub Pages.
 #
-# There is no build step: the app is plain HTML + ES modules + a service worker,
-# so the repository *is* the artefact. The only thing that has to happen is
-# publishing the tree and letting Pages serve it.
+# No compilation is needed. package-site selects the runtime HTML, scripts,
+# styles and assets into dist/site; quality tests that package before deploy.
+# Development tools, diagnostics and local data are excluded.
 #
 # Two details that matter:
 #   - `.nojekyll` (repo root) opts out of Jekyll, which would otherwise process
@@ -32,7 +32,47 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Static and browser regressions must pass before deployment.
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@v2
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
+      - name: Run static and browser tests
+        run: npm run test:all
+        env:
+          E2E_BROWSER: ${{ steps.chrome.outputs.chrome-path }}
+
+      - name: Test packaged site from a subdirectory
+        run: npm run test:staging
+        env:
+          E2E_BROWSER: ${{ steps.chrome.outputs.chrome-path }}
+
+      - name: Audit dependencies
+        run: npm audit --omit=dev
+
   deploy:
+    needs: quality
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -40,6 +80,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Package application
+        run: npm run package:site
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -52,9 +100,8 @@ jobs:
       - name: Upload the site
         uses: actions/upload-pages-artifact@v3
         with:
-          # The whole tree minus .git. node_modules is not committed, so it is
-          # absent here too — checkout only materialises tracked files.
-          path: .
+          # Publish the same application-only package tested by quality.
+          path: dist/site
 
       - name: Deploy
         id: deployment

@@ -80,11 +80,21 @@ assert('garbage', toMonthKey('not-a-date'), '');
 assert('invalid Date', toMonthKey(new Date('nope')), '');
 
 console.log('\n== invoiceMonthKey ==');
-assert('prefers createdAt', invoiceMonthKey({ createdAt: '2026-09-01', issueDate: '2026-08-01' }), '2026-09');
-assert('falls back to issueDate', invoiceMonthKey({ issueDate: '2026-08-01' }), '2026-08');
+// The user-visible issueDate (a local YYYY-MM-DD) wins over the UTC createdAt.
+// Slicing the UTC stamp put an invoice created at 01:30 local on the 1st into
+// the previous month in any UTC+ timezone (Tanzania is UTC+3).
+assert('prefers issueDate (local, user-visible)', invoiceMonthKey({ createdAt: '2026-09-30T22:30:00.000Z', issueDate: '2026-10-01' }), '2026-10');
+assert('falls back to createdAt when no issueDate', invoiceMonthKey({ createdAt: '2026-09-01' }), '2026-09');
 assert('createdAt present but unparseable falls back', invoiceMonthKey({ createdAt: 'x', issueDate: '2026-07-02' }), '2026-07');
 assert('null invoice', invoiceMonthKey(null), '');
 assert('empty invoice', invoiceMonthKey({}), '');
+
+console.log('\n== quota month boundary (timezone) ==');
+// An invoice created 2026-10-01 01:30 EAT has a UTC stamp of
+// 2026-09-30T22:30Z. It must count against October, the month it was issued.
+const boundary = { createdAt: '2026-09-30T22:30:00.000Z', issueDate: '2026-10-01' };
+assert('boundary invoice counted in October', countInvoicesInMonth([boundary], '2026-10'), 1);
+assert('boundary invoice NOT counted in September', countInvoicesInMonth([boundary], '2026-09'), 0);
 
 console.log('\n== countInvoicesInMonth ==');
 const INVOICES = [

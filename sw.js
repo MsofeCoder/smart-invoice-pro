@@ -20,7 +20,7 @@
  *
  * Bump CACHE_NAME on every deploy — it is what makes clients pick up new files.
  */
-const CACHE_NAME = 'smart-invoice-pro-v16';
+const CACHE_NAME = 'smart-invoice-pro-v18';
 
 /** Cache prefixes owned by this app, used to sweep up after a rename. */
 const OWNED_PREFIXES = ['smart-invoice-pro-', 'crown-invoice-pro-'];
@@ -135,16 +135,26 @@ self.addEventListener('fetch', (event) => {
      the *requested* page in cache. Falling back to index.html unconditionally
      would silently serve the dashboard when the user opens invoice.html offline. */
   if (request.mode === 'navigate') {
+    /* Cache under the PATH, not the full URL. The app links to
+       `invoice.html?new=1` and the tour adds `?tour=<step>`, so keying on the
+       request would mint a new, permanent cache entry for every query variant
+       and the navigation cache would grow without bound. The lookup mirrors the
+       same normalisation so an offline deep link still resolves. */
+    const key = new URL(request.url);
+    key.search = '';
+    key.hash = '';
+
     event.respondWith(
       fetch(request)
         .then((response) => {
           if (response && response.status === 200) {
             const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+            caches.open(CACHE_NAME).then((cache) => cache.put(key.href, copy));
           }
           return response;
         })
-        .catch(() => caches.match(request)
+        .catch(() => caches.match(key.href)
+          .then((cached) => cached || caches.match(request))
           .then((cached) => cached || caches.match('./index.html')))
     );
     return;

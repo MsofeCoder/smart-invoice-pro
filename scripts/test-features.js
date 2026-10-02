@@ -162,15 +162,12 @@ r.section('A. Free-plan gates');
 
 /* Land on the dashboard FIRST, before anything else.
  *
- * Sample data seeds only from index.html (`app.js` → `seedSampleData`), and only
- * when the invoice table is empty. Every "the download happened" assertion below
- * is meaningless without it: `exportCSV` returns early on zero rows, so a BLOCKED
- * export and an ALLOWED one both produce no download at all. Opening
- * settings.html directly made the monthly-block check below pass for the wrong
- * reason — it would have passed with the gate ripped out entirely. */
+ * Explicit disposable sample fixtures make export assertions meaningful:
+ * an allowed export must create a file, while a blocked one must not. */
 await neutraliseTour();
+await evaluate(`(async () => { const db = await import('./js/db.js'); await db.seedSampleData(); })()`);
 const seeded = JSON.parse(await evaluate(INVOICES));
-r.check('the sample ledger seeded on first run', seeded.length >= 6, String(seeded.length));
+r.check('the explicit sample fixture is populated', seeded.length >= 6, String(seeded.length));
 
 await open('settings.html');
 

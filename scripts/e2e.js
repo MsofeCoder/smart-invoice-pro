@@ -133,13 +133,14 @@ const env = {
   ...process.env,
   E2E_CDP: `http://127.0.0.1:${cdpPort}`,
   E2E_ORIGIN: origin,
+  E2E_ISOLATED_PROFILE: profileDir,
 };
 
 const SUITE_TIMEOUT_MS = Number(process.env.E2E_TIMEOUT || 300000);
 
 const run = (file) =>
   new Promise((resolve) => {
-    const p = spawn(process.execPath, [path.join(ROOT, 'scripts', file)], { cwd: ROOT, stdio: 'inherit', env });
+    const p = spawn(process.execPath, [path.join(ROOT, 'scripts', file), ...(customSuite ? args.filter(a => /^https?:\/\//.test(a) || a === '--local') : [])], { cwd: ROOT, stdio: 'inherit', env });
     // A suite that forgets to exit (e.g. an open socket) would otherwise hang the
     // whole run forever, so bound it.
     const timer = setTimeout(() => {
@@ -166,7 +167,7 @@ const suites = customSuite
     ? ['screenshots.js']
     : a11yOnly
       ? ['test-a11y.js']
-      : ['test-e2e.js', 'test-a11y.js', 'test-polish.js', 'test-responsive.js', 'test-platform.js', 'test-charts.js', 'test-preview.js', 'test-onboarding.js', 'test-features.js'];
+      : ['test-e2e.js', 'test-a11y.js', 'test-polish.js', 'test-responsive.js', 'test-platform.js', 'test-charts.js', 'test-preview.js', 'test-onboarding.js', 'test-features.js', 'test-release.js'];
 const results = [];
 for (const suite of suites) {
   results.push([suite, await run(suite)]);

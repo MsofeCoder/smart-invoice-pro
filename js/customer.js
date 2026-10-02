@@ -97,15 +97,15 @@ function openCustomerModal(id = null) {
       <div class="grid grid-cols-2 gap-4">
         <div class="field">
           <label>Name <span class="req">*</span></label>
-          <input type="text" class="input" id="custName" value="${escapeHTML(customer?.name || '')}" placeholder="Customer name">
+          <input type="text" class="input" id="custName" autocomplete="name" value="${escapeHTML(customer?.name || '')}" placeholder="Customer name">
         </div>
         <div class="field">
           <label>Phone</label>
-          <input type="tel" class="input" id="custPhone" value="${escapeHTML(customer?.phone || '')}" placeholder="+255 7XX XXX XXX">
+          <input type="tel" class="input" id="custPhone" autocomplete="tel" value="${escapeHTML(customer?.phone || '')}" placeholder="+255 7XX XXX XXX">
         </div>
         <div class="field">
           <label>Email</label>
-          <input type="email" class="input" id="custEmail" value="${escapeHTML(customer?.email || '')}" placeholder="customer@email.com">
+          <input type="email" class="input" id="custEmail" autocomplete="email" value="${escapeHTML(customer?.email || '')}" placeholder="customer@email.com">
         </div>
         <div class="field">
           <label>TIN</label>
@@ -113,7 +113,7 @@ function openCustomerModal(id = null) {
         </div>
         <div class="field col-span-2">
           <label>Address</label>
-          <input type="text" class="input" id="custAddress" value="${escapeHTML(customer?.address || '')}" placeholder="Street, City, Region">
+          <input type="text" class="input" id="custAddress" autocomplete="street-address" value="${escapeHTML(customer?.address || '')}" placeholder="Street, City, Region">
         </div>
         <div class="field col-span-2">
           <label>Notes</label>

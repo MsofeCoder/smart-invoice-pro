@@ -38,6 +38,8 @@ await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: CON
    sample data on an empty database. The seed only happens on the dashboard. */
 await send('Storage.clearDataForOrigin', { origin, storageTypes: 'all' });
 await goto('index.html', 3600);
+await evaluate(`(async () => { const db = await import('./js/db.js'); await db.seedSampleData(); })()`);
+await goto('index.html', 2000);
 await sleep(600);
 
 /* ---------- Blob capture ----------

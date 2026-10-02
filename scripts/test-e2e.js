@@ -30,10 +30,12 @@ await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: CON
    the app re-seeds its sample data on an empty database. */
 await send('Storage.clearDataForOrigin', { origin, storageTypes: 'all' });
 await goto('index.html', 3600);
+await evaluate(`(async () => { const db = await import('./js/db.js'); await db.seedSampleData(); })()`);
+await goto('index.html', 2000);
 const seeded = await evaluate(
   `(async () => { const db = await import('./js/db.js'); return { inv: (await db.getInvoices()).length, cus: (await db.getCustomers()).length }; })()`,
 );
-r.check('fresh seed produced sample data', seeded.inv > 0 && seeded.cus > 0, JSON.stringify(seeded));
+r.check('explicit fixture produced sample data', seeded.inv > 0 && seeded.cus > 0, JSON.stringify(seeded));
 
 /* ---------- Blob capture ----------
    Headless download plumbing is unreliable, and the blob *contents* are what

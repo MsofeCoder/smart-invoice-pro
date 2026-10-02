@@ -357,25 +357,48 @@ export async function exportAllData() {
 }
 
 export async function importAllData(payload) {
-  if (!payload || !ACCEPTED_APP_IDS.includes(payload.app) || !payload.data) {
-    throw new Error('Invalid backup file');
+  if (!payload || !ACCEPTED_APP_IDS.includes(payload.app) || payload.version !== 1 ||
+      !payload.data || typeof payload.data !== 'object' || Array.isArray(payload.data)) {
+    throw new Error('Invalid or unsupported backup file');
   }
-  const { settings = [], customers = [], products = [], invoices = [], payments = [] } = payload.data;
-  await Promise.all([
-    dbClear('settings'),
-    dbClear('customers'),
-    dbClear('products'),
-    dbClear('invoices'),
-    dbClear('payments'),
-  ]);
-  await Promise.all([
-    dbBulkPut('settings', settings),
-    dbBulkPut('customers', customers),
-    dbBulkPut('products', products),
-    dbBulkPut('invoices', invoices),
-    dbBulkPut('payments', payments),
-  ]);
-  return { settings: settings.length, customers: customers.length, products: products.length, invoices: invoices.length, payments: payments.length };
+  const names = ['settings', 'customers', 'products', 'invoices', 'payments'];
+  // A full backup must contain every store: omitted stores must never erase data.
+  for (const name of names) {
+    const rows = payload.data[name];
+    if (!Array.isArray(rows)) throw new Error(`Invalid backup: ${name} must be an array`);
+    const key = STORES[name].keyPath;
+    const keys = new Set();
+    for (const row of rows) {
+      if (!row || typeof row !== 'object' || Array.isArray(row) ||
+          typeof row[key] !== 'string' || !row[key].trim() || keys.has(row[key])) {
+        throw new Error(`Invalid backup: missing or duplicate ${name} ${key}`);
+      }
+      keys.add(row[key]);
+    }
+  }
+  const db = await openDB();
+  // Queue clears and inserts synchronously in ONE transaction. Failure in any
+  // store rolls back all stores, including the pending sync queue.
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction([...names, 'syncQueue'], 'readwrite');
+    let failure;
+    tx.oncomplete = resolve;
+    tx.onabort = () => reject(failure || tx.error || new Error('Backup restore aborted; existing data was preserved'));
+    tx.onerror = () => { failure ||= tx.error; };
+    try {
+      for (const name of names) {
+        const store = tx.objectStore(name);
+        store.clear();
+        payload.data[name].forEach(row => store.put(row));
+      }
+      // Operations queued against the replaced dataset must not be replayed.
+      tx.objectStore('syncQueue').clear();
+    } catch (err) {
+      failure = err;
+      tx.abort();
+    }
+  });
+  return Object.fromEntries(names.map(name => [name, payload.data[name].length]));
 }
 
 /* ---------------- Sample data ---------------- */

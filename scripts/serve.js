@@ -56,7 +56,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (urlPath === '/') urlPath = '/index.html';
+  if (urlPath.endsWith('/')) urlPath += 'index.html';
 
   // Resolve inside ROOT and verify — blocks ../ traversal.
   const filePath = path.resolve(ROOT, '.' + urlPath);

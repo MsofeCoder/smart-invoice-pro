@@ -29,8 +29,10 @@ const WIDTHS = [320, 390, 430, 600, 768, 900, 1024, 1280, 1440, 1600];
 const PAGES = ['index.html', 'invoice.html', 'customers.html', 'products.html', 'reports.html', 'settings.html'];
 
 await send('Storage.clearDataForOrigin', { origin: CONFIG.origin, storageTypes: 'all' });
-// Warm up so the app seeds its demo data before we start measuring charts.
+// Load explicit demo fixtures before measuring charts.
 await goto('index.html', 3400);
+await evaluate(`(async () => { const db = await import('./js/db.js'); await db.seedSampleData(); })()`);
+await goto('index.html', 2000);
 
 const probe = `(() => {
   const vw = window.innerWidth;

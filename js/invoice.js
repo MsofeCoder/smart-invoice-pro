@@ -2,7 +2,7 @@
  * Invoice module
  * List, editor (with live calculations), preview, PDF export, payments.
  */
-import { $, $$, escapeHTML, sanitizeString, sanitizeMultiline, toNumber, uid, toISODate, addDays, formatDate, toast, openModal, confirmDialog, debounce, withLoading, isValidEmail, isValidPhone } from './utils.js';
+import { $, $$, escapeHTML, validateNumberInputs, sanitizeString, sanitizeMultiline, toNumber, uid, toISODate, addDays, formatDate, toast, openModal, confirmDialog, debounce, withLoading, isValidEmail, isValidPhone } from './utils.js';
 import {
   getInvoices, saveInvoice, deleteInvoice, getCustomers, saveCustomer, getProducts,
   getPayments, savePayment, deletePayment, getSetting, setSetting, getCompanyProfile,
@@ -206,9 +206,9 @@ function addLineRow(item = {}) {
       </select>
       <input type="text" class="input line-name" placeholder="Description" value="${escapeHTML(item.name || '')}" aria-label="Description">
     </td>
-    <td><input type="number" class="input line-qty" min="0" step="any" value="${item.qty ?? 1}" aria-label="Quantity"></td>
-    <td><input type="number" class="input line-price" min="0" step="0.01" value="${item.unitPrice ?? ''}" aria-label="Unit price"></td>
-    <td><input type="number" class="input line-disc" min="0" step="0.01" value="${item.discountRate ?? 0}" aria-label="Discount percent"></td>
+    <td><input type="number" class="input line-qty" min="0" step="any" inputmode="decimal" value="${item.qty ?? 1}" aria-label="Quantity"></td>
+    <td><input type="number" class="input line-price" min="0" step="0.01" inputmode="decimal" value="${item.unitPrice ?? ''}" aria-label="Unit price"></td>
+    <td><input type="number" class="input line-disc" min="0" step="0.01" inputmode="decimal" value="${item.discountRate ?? 0}" aria-label="Discount percent"></td>
     <td class="num line-amount font-semibold">—</td>
     <td><button class="icon-btn danger line-remove" aria-label="Remove item" title="Remove">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -639,6 +639,7 @@ async function ensureCustomerFor(invoice) {
 }
 
 async function saveCurrentInvoice(statusOverride = null) {
+  if (!validateNumberInputs($('#editorView'))) return null;
   const invoice = collectInvoice();
   if (statusOverride) invoice.status = statusOverride;
 
@@ -862,6 +863,7 @@ function openPaymentModal(invoice) {
     onOpen: (ov) => {
       $('[data-action="cancel"]', ov).addEventListener('click', () => ov.remove());
       $('[data-action="save"]', ov).addEventListener('click', async () => {
+        if (!validateNumberInputs(ov)) return;
         const amount = toNumber($('#payAmount', ov).value);
         if (amount <= 0) { toast('Enter a valid amount', 'error'); return; }
         const payment = {

@@ -39,12 +39,67 @@ export function sanitizeMultiline(value, maxLen = 5000) {
     .slice(0, maxLen);
 }
 
-/** Parse a number safely; returns 0 for invalid input. */
+/**
+ * Parse canonical numeric values first, preserving arbitrary decimal precision
+ * and scientific notation from native number inputs. Formatted text may use
+ * validated thousands groups and a comma decimal separator. A lone dot always
+ * means decimal; locale-specific dot grouping needs multiple groups or a comma.
+ * Invalid input returns zero for the existing calculation contract; forms must
+ * validate their native inputs before persisting values.
+ */
 export function toNumber(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-  if (value == null || value === '') return 0;
-  const n = Number(String(value).replace(/[^\d.-]/g, ''));
-  return Number.isFinite(n) ? n : 0;
+  if (value == null) return 0;
+  let s = String(value).trim();
+  if (!s) return 0;
+  const canonical = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+  if (canonical.test(s)) {
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+  }
+  let sign = 1;
+  if (/^\(.*\)$/.test(s)) { sign = -1; s = s.slice(1, -1).trim(); }
+  // Accept a currency label or symbol at an edge, never arbitrary inner text.
+  s = s.replace(/^(?:[A-Z]{3}|[$??])\s*/i, '').replace(/\s*(?:[A-Z]{3}|[$??])$/i, '').trim();
+  if (s.startsWith('-')) { sign *= -1; s = s.slice(1); }
+  else if (s.startsWith('+')) s = s.slice(1);
+  // Space grouping is valid only in complete groups of three digits.
+  if (/\s/.test(s)) {
+    if (!/^\d{1,3}(?:[ \u00a0\u202f]\d{3})+(?:[.,]\d+)?$/.test(s)) return 0;
+    s = s.replace(/[ \u00a0\u202f]/g, '');
+  }
+  if (/^\d+(?:\.\d*)?$/.test(s)) {
+    const n = Number(s);
+    return Number.isFinite(n) ? sign * n : 0;
+  }
+  let normalised;
+  if (s.includes('.') && s.includes(',')) {
+    const decimal = s.lastIndexOf('.') > s.lastIndexOf(',') ? '.' : ',';
+    const grouping = decimal === '.' ? ',' : '.';
+    const [whole, fraction, extra] = s.split(decimal);
+    const groups = whole.split(grouping);
+    if (extra !== undefined || !/^\d+$/.test(fraction || '') ||
+        !/^\d{1,3}$/.test(groups[0]) || groups.slice(1).some(g => !/^\d{3}$/.test(g))) return 0;
+    normalised = groups.join('') + '.' + fraction;
+  } else if (/^[1-9]\d{0,2}(?:,\d{3})+$/.test(s) || /^\d{1,3}(?:\.\d{3}){2,}$/.test(s)) {
+    normalised = s.replace(/[.,]/g, '');
+  } else if (/^\d*,\d+$/.test(s)) {
+    normalised = s.replace(',', '.');
+  } else return 0;
+  const n = Number(normalised);
+  return Number.isFinite(n) ? sign * n : 0;
+}
+
+/** Validate native numeric fields before a click handler saves their values. */
+export function validateNumberInputs(root = document) {
+  for (const input of root.querySelectorAll('input[type="number"]')) {
+    if (!input.checkValidity()) {
+      input.reportValidity();
+      toast('Please correct the highlighted numeric value.', 'error');
+      return false;
+    }
+  }
+  return true;
 }
 
 /** Generate a short unique id. */

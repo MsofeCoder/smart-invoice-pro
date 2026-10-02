@@ -782,16 +782,17 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; lin
   box-shadow: var(--shadow-md);
   animation: toast-in 0.3s var(--ease-spring);
   font-size: 0.88rem;
+  min-width: 0; max-width: 100%;
 }
 .toast.success { border-left-color: var(--success); }
 .toast.error { border-left-color: var(--danger); }
 .toast.warning { border-left-color: var(--warning); }
 .toast .toast-icon { width: 20px; height: 20px; flex-shrink: 0; margin-top: 1px; }
-.toast .toast-msg { flex: 1; }
+.toast .toast-msg { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .toast .toast-close { color: var(--ink-faint); }
 .toast.leaving { animation: toast-out 0.25s var(--ease) forwards; }
-@keyframes toast-in { from { opacity: 0; transform: translateX(30px) scale(0.95); } to { opacity: 1; transform: none; } }
-@keyframes toast-out { to { opacity: 0; transform: translateX(30px) scale(0.95); } }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-8px) scale(0.95); } to { opacity: 1; transform: none; } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(-8px) scale(0.95); } }
 
 /* ---------- 12. Skeleton ---------- */
 .skeleton {

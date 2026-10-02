@@ -2,7 +2,7 @@
  * Settings module
  * Business profile, preferences, bank/mobile money, logo, backup/restore/reset.
  */
-import { $, $$, escapeHTML, sanitizeString, toNumber, toast, confirmDialog, readFileAsDataURL, readFileAsText, downloadBlob, debounce, initials, withLoading } from './utils.js';
+import { $, $$, escapeHTML, validateNumberInputs, sanitizeString, toNumber, toast, confirmDialog, readFileAsDataURL, readFileAsText, downloadBlob, debounce, initials, withLoading } from './utils.js';
 import {
   getSetting, setSetting, bulkSetSettings, exportAllData, importAllData, clear,
 } from './storageService.js';
@@ -542,6 +542,7 @@ function populateForm() {
 }
 
 async function saveSettings() {
+  if (!validateNumberInputs()) return;
   const company = {
     businessName: sanitizeString($('#setBusinessName').value, 200),
     address: sanitizeString($('#setAddress').value, 300),

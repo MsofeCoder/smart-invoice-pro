@@ -246,16 +246,16 @@
               <div class="grid grid-cols-2 gap-4">
                 <div class="field col-span-2">
                   <label for="setBusinessName">Business Name</label>
-                  <input type="text" class="input" id="setBusinessName" placeholder="Your business name">
+                  <input type="text" class="input" id="setBusinessName" autocomplete="organization" placeholder="Your business name">
                   <span class="hint">Printed on every invoice, PDF and report</span>
                 </div>
                 <div class="field col-span-2">
                   <label for="setAddress">Address</label>
-                  <input type="text" class="input" id="setAddress" placeholder="Street, building">
+                  <input type="text" class="input" id="setAddress" autocomplete="street-address" placeholder="Street, building">
                 </div>
                 <div class="field">
                   <label for="setRegion">Region</label>
-                  <input type="text" class="input" id="setRegion" placeholder="e.g. Dar es Salaam">
+                  <input type="text" class="input" id="setRegion" autocomplete="address-level1" placeholder="e.g. Dar es Salaam">
                 </div>
                 <div class="field">
                   <label for="setDistrict">District</label>
@@ -263,19 +263,19 @@
                 </div>
                 <div class="field">
                   <label for="setCountry">Country</label>
-                  <input type="text" class="input" id="setCountry" placeholder="Tanzania">
+                  <input type="text" class="input" id="setCountry" autocomplete="country-name" placeholder="Tanzania">
                 </div>
                 <div class="field">
                   <label for="setPhone">Phone</label>
-                  <input type="tel" class="input" id="setPhone" placeholder="+255 7XX XXX XXX">
+                  <input type="tel" class="input" id="setPhone" autocomplete="tel" placeholder="+255 7XX XXX XXX">
                 </div>
                 <div class="field">
                   <label for="setEmail">Email</label>
-                  <input type="email" class="input" id="setEmail" placeholder="business@email.com">
+                  <input type="email" class="input" id="setEmail" autocomplete="email" placeholder="business@email.com">
                 </div>
                 <div class="field">
                   <label for="setWebsite">Website</label>
-                  <input type="text" class="input" id="setWebsite" placeholder="www.example.com">
+                  <input type="text" class="input" id="setWebsite" autocomplete="url" placeholder="www.example.com">
                 </div>
                 <div class="field">
                   <label for="setTin">TIN</label>
@@ -349,7 +349,7 @@
                 </div>
                 <div class="field">
                   <label for="setDefaultTax">Default Tax Rate (%)</label>
-                  <input type="number" class="input" id="setDefaultTax" min="0" step="0.01" placeholder="18">
+                  <input type="number" class="input" id="setDefaultTax" min="0" step="0.01" inputmode="decimal" placeholder="18">
                 </div>
                 <div class="field">
                   <label for="setInvoicePrefix">Invoice Prefix</label>

@@ -76,6 +76,15 @@ console.log('== toNumber ==');
 assert('number passthrough', toNumber(42), 42);
 assert('string number', toNumber('42'), 42);
 assert('float string', toNumber('3.14'), 3.14);
+assert('fractional quantity', toNumber('0.125'), 0.125);
+assert('three decimal places stay decimal', toNumber('1.234'), 1.234);
+assert('scientific notation', toNumber('1e3'), 1000);
+assert('negative exponent', toNumber('1e-3'), 0.001);
+assert('malformed inner letters rejected', toNumber('12oops34'), 0);
+assert('malformed grouping rejected', toNumber('1,23,456'), 0);
+assert('malformed mixed grouping rejected', toNumber('12.34,56'), 0);
+assert('malformed dot grouping rejected', toNumber('1.2.3'), 0);
+assert('fractional comma quantity', toNumber('0,125'), 0.125);
 assert('strips non-numeric', toNumber('TZS 1,200.50'), 1200.5);
 assert('empty string -> 0', toNumber(''), 0);
 assert('null -> 0', toNumber(null), 0);
@@ -84,6 +93,21 @@ assert('NaN string -> 0', toNumber('abc'), 0);
 assert('Infinity -> 0', toNumber(Infinity), 0);
 assert('negative', toNumber('-50'), -50);
 assert('keeps minus and dot', toNumber('-1,234.56'), -1234.56);
+// Localised / pasted amounts: the separators are interpreted, not deleted.
+// Before this was fixed, '1.234,56' became 1.23456 and '2,50' became 250 —
+// wrong money stored silently.
+assert('comma decimal (2,50 -> 2.5)', toNumber('2,50'), 2.5);
+assert('dot grouping + comma decimal', toNumber('1.234,56'), 1234.56);
+assert('space grouping + comma decimal', toNumber('1 234,56'), 1234.56);
+assert('thousands grouping (1,234)', toNumber('1,234'), 1234);
+assert('repeated grouping (1.234.567)', toNumber('1.234.567'), 1234567);
+assert('multiple same separator groups', toNumber('1,234,567.89'), 1234567.89);
+assert('accounting negative', toNumber('(500)'), -500);
+assert('accounting negative with separators', toNumber('(1,234.56)'), -1234.56);
+assert('leading plus', toNumber('+1,200'), 1200);
+assert('expression -> 0 (no stray sign)', toNumber('0.1+0.2'), 0);
+assert('whitespace only -> 0', toNumber('   '), 0);
+assert('separators but no digits -> 0', toNumber('.,'), 0);
 
 console.log('== uid ==');
 const id1 = uid();

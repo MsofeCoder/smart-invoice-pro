@@ -65,6 +65,8 @@ const normDash = (s) => String(s).replace(/[,\s]+/g, ' ').trim();
 await send('Storage.clearDataForOrigin', { origin: CONFIG.origin, storageTypes: 'all' });
 await setWidth(1440, 1000);
 await goto('index.html', 2000);
+await evaluate(`(async () => { const db = await import('./js/db.js'); await db.seedSampleData(); })()`);
+await goto('index.html', 2000);
 await waitFor(`!!document.querySelector('#statusDonut .donut-seg') && !!document.querySelector('#salesChart .bar-col')`);
 await waitSettled();
 

@@ -2,7 +2,7 @@
  * Product module
  * List, search, filter, add, edit, delete products with stock tracking.
  */
-import { $, $$, escapeHTML, sanitizeString, toNumber, uid, toast, openModal, confirmDialog, debounce, readFileAsDataURL } from './utils.js';
+import { $, $$, escapeHTML, validateNumberInputs, sanitizeString, toNumber, uid, toast, openModal, confirmDialog, debounce, readFileAsDataURL } from './utils.js';
 import { getProducts, saveProduct, deleteProduct } from './storageService.js';
 import { getDefaultCurrencyCode, getCurrency, formatMoney } from './currency.js';
 import { exportProductsCSV } from './export.js';
@@ -176,6 +176,7 @@ function openProductModal(id = null) {
         preview.innerHTML = '<span class="text-faint text-xs">No image</span>';
       });
       $('[data-action="save"]', ov).addEventListener('click', async () => {
+        if (!validateNumberInputs(ov)) return;
         const name = sanitizeString($('#prodName', ov).value, 200);
         const price = toNumber($('#prodPrice', ov).value);
         if (!name) { toast('Product name is required', 'error'); return; }

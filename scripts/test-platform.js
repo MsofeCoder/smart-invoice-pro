@@ -55,6 +55,8 @@ const clearInvoices = () => evaluate(`(async () => {
 
 r.section('A. Storage adapter');
 await goto('index.html', 3200);
+await evaluate(`(async () => { const db = await import('./js/db.js'); await db.seedSampleData(); })()`);
+await goto('index.html', 2000);
 
 const adapterInfo = JSON.parse(await evaluate(`(async () => {
   const s = await import('./js/storageService.js');

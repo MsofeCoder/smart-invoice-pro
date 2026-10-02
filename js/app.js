@@ -4,7 +4,7 @@
  * Seeds sample data on first run so the dashboard is never empty.
  */
 import { $, $$, escapeHTML, toNumber, toISODate, formatDate, toast } from './utils.js';
-import { getInvoices, getCustomers, getProducts, getPayments, getSetting, count, seedSampleData } from './storageService.js';
+import { getInvoices, getCustomers, getProducts, getPayments, getSetting } from './storageService.js';
 import { getDefaultCurrencyCode, getCurrency, formatMoney } from './currency.js';
 import { round2, sum, deriveStatus } from './calculations.js';
 import { STATUS_META, renderStatusDonut, renderBarChart } from './charts.js';
@@ -186,18 +186,6 @@ function renderAll() {
 /* ================= Init ================= */
 async function init() {
   await initShell();
-
-  // First-run seeding: if there are no invoices, seed sample data so the
-  // dashboard is not empty on a fresh install.
-  try {
-    const invoiceCount = await count('invoices');
-    if (invoiceCount === 0) {
-      await seedSampleData();
-      toast('Welcome! Sample data has been added to get you started.', 'success', 5000);
-    }
-  } catch {
-    // Non-fatal — continue without sample data.
-  }
 
   const [invoices, customers, products, payments, currency, company] = await Promise.all([
     getInvoices(),
