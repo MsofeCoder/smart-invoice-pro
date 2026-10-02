@@ -135,6 +135,23 @@ export function paymentGateways() {
   return Array.isArray(CONFIG.paymentGateways) ? CONFIG.paymentGateways : [];
 }
 
+/** Feature ids gated behind a paid plan. Empty when the config did not load. */
+export function paidFeatureList() {
+  return Array.isArray(CONFIG.paidFeatures) ? CONFIG.paidFeatures : [];
+}
+
+/** Admin-console settings. Mirrors the defaults in js/app.config.js. */
+export function adminConfig() {
+  if (helpers && typeof helpers.adminConfig === 'function') return helpers.adminConfig();
+  return CONFIG.admin || { defaultPasscode: 'admin123', maxKeysPerBatch: 50, feedbackWarnThreshold: 25 };
+}
+
+/** Feedback settings. Mirrors the defaults in js/app.config.js. */
+export function feedbackConfig() {
+  if (helpers && typeof helpers.feedbackConfig === 'function') return helpers.feedbackConfig();
+  return CONFIG.feedback || { email: '', whatsapp: '', promptAfterInvoices: 3, categories: ['General', 'Other'] };
+}
+
 export function whatsappConfig() {
   return CONFIG.whatsapp || { countryCode: '255', defaultMessage: '' };
 }

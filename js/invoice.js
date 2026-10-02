@@ -2,9 +2,9 @@
  * Invoice module
  * List, editor (with live calculations), preview, PDF export, payments.
  */
-import { $, $$, escapeHTML, sanitizeString, sanitizeMultiline, toNumber, uid, toISODate, addDays, formatDate, toast, openModal, confirmDialog, debounce, withLoading } from './utils.js';
+import { $, $$, escapeHTML, sanitizeString, sanitizeMultiline, toNumber, uid, toISODate, addDays, formatDate, toast, openModal, confirmDialog, debounce, withLoading, isValidEmail, isValidPhone } from './utils.js';
 import {
-  getInvoices, saveInvoice, deleteInvoice, getCustomers, getProducts,
+  getInvoices, saveInvoice, deleteInvoice, getCustomers, saveCustomer, getProducts,
   getPayments, savePayment, deletePayment, getSetting, setSetting, getCompanyProfile,
 } from './storageService.js';
 import { getCurrencies, getDefaultCurrencyCode, getCurrency, formatMoney, amountToWords, amountToWordsSwahili } from './currency.js';
@@ -398,6 +398,116 @@ async function openEditor(id = null) {
   window.scrollTo(0, 0);
 }
 
+/**
+ * Fill the customer fields from a record and mark it as the selected one.
+ *
+ * Three callers need exactly this — picking from the select, the `?customer=`
+ * deep link from the Customers page, and the inline "New customer" form — so it
+ * lives in one place. As three copies of five assignments, a change to one of
+ * them silently stopped applying to the other two.
+ */
+function applyCustomerToForm(customer) {
+  const select = $('#invCustomer');
+  if (select && customer) select.value = customer.id;
+  $('#invCustomerName').value = customer?.name || '';
+  $('#invCustomerPhone').value = customer?.phone || '';
+  $('#invCustomerEmail').value = customer?.email || '';
+  $('#invCustomerTin').value = customer?.tin || '';
+  $('#invCustomerAddress').value = customer?.address || '';
+}
+
+/**
+ * Add a customer without leaving the invoice.
+ *
+ * Deliberately a compact form rather than a link to the Customers page: the
+ * moment a user raises an invoice for someone new is the moment they have that
+ * person's details in hand, and making them leave would cost a page change, a
+ * re-find of the invoice, and the line items typed so far.
+ *
+ * It writes through `saveCustomer` — the same path the Customers page uses — so
+ * the two screens can never disagree about what a customer record is.
+ */
+function openNewCustomerModal() {
+  openModal({
+    title: 'New customer',
+    size: 'modal-lg',
+    body: `
+      <div class="grid grid-cols-2 gap-4">
+        <div class="field col-span-2">
+          <label for="ncName">Name <span class="req">*</span></label>
+          <input type="text" class="input" id="ncName" placeholder="Customer name">
+        </div>
+        <div class="field">
+          <label for="ncPhone">Phone</label>
+          <input type="tel" class="input" id="ncPhone" placeholder="+255 7XX XXX XXX">
+        </div>
+        <div class="field">
+          <label for="ncEmail">Email</label>
+          <input type="email" class="input" id="ncEmail" placeholder="customer@email.com">
+        </div>
+        <div class="field">
+          <label for="ncTin">TIN</label>
+          <input type="text" class="input" id="ncTin" placeholder="TIN number">
+        </div>
+        <div class="field">
+          <label for="ncAddress">Address</label>
+          <input type="text" class="input" id="ncAddress" placeholder="Street, City">
+        </div>
+      </div>`,
+    footer: `
+      <button class="btn btn-outline" data-action="cancel">Cancel</button>
+      <button class="btn btn-primary" data-action="save">Add &amp; select</button>`,
+    onOpen: (ov) => {
+      $('[data-action="cancel"]', ov).addEventListener('click', () => ov.remove());
+      $('[data-action="save"]', ov).addEventListener('click', async () => {
+        const name = sanitizeString($('#ncName', ov).value, 200);
+        const phone = sanitizeString($('#ncPhone', ov).value, 50);
+        const email = sanitizeString($('#ncEmail', ov).value, 200);
+        const tin = sanitizeString($('#ncTin', ov).value, 50);
+        const address = sanitizeString($('#ncAddress', ov).value, 300);
+
+        if (!name) { toast('Customer name is required', 'error'); return; }
+        if (email && !isValidEmail(email)) { toast('Please enter a valid email', 'error'); return; }
+        if (phone && !isValidPhone(phone)) { toast('Please enter a valid phone number', 'error'); return; }
+
+        // An existing record with the same name is reused rather than cloned —
+        // the customer list is the one place a duplicate is never forgiven, and
+        // the user's intent here is "bill this person", not "create a row".
+        const dupe = state.customers.find(
+          (c) => (c.name || '').trim().toLowerCase() === name.toLowerCase(),
+        );
+        const record = dupe
+          ? {
+            ...dupe,
+            phone: phone || dupe.phone || '',
+            email: email || dupe.email || '',
+            tin: tin || dupe.tin || '',
+            address: address || dupe.address || '',
+            updatedAt: new Date().toISOString(),
+          }
+          : {
+            id: uid('cust'),
+            name, phone, email, tin, address,
+            notes: '',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+        try {
+          await saveCustomer(record);
+          state.customers = await getCustomers();
+          ov.remove();
+          populateCustomerSelect();
+          applyCustomerToForm(record);
+          toast(dupe ? `Using existing customer "${record.name}"` : `Customer "${record.name}" added`, 'success');
+        } catch (err) {
+          toast('Failed to save customer: ' + err.message, 'error');
+        }
+      });
+    },
+  });
+}
+
 function collectInvoice() {
   const lines = collectLines();
   const discount = toNumber($('#invDiscount').value);
@@ -459,6 +569,75 @@ function collectInvoice() {
   };
 }
 
+/**
+ * Make sure the invoice's customer exists in the customer database.
+ *
+ * This is the "automatic" half of the feature: a user who types a new client's
+ * details straight onto an invoice should not have to visit Customers to make
+ * them real. Saving the invoice saves the customer.
+ *
+ * HOW THE TARGET IS CHOSEN
+ *   The select picks the person and the editable Name field renames them, so a
+ *   linked record is always the correct target — updating it is exactly what
+ *   that field says it does. Only when nothing is linked do we fall back to a
+ *   name lookup, and only when that misses too is this genuinely someone new.
+ *   (Looking up by name first would clone the customer every time the user
+ *   fixed a typo in the name.)
+ *
+ * FIELDS ARE ONLY EVER REFRESHED, NEVER CLEARED
+ *   An empty field on the invoice means "not specified here", not "delete this
+ *   from the customer record" — the invoice form is pre-filled from the record,
+ *   so a blank means the user has not touched it, and wiping the customer's
+ *   phone number because the invoice form was blank would be data loss.
+ *
+ * @returns {Promise<{customer: object, created: boolean}|null>}
+ */
+async function ensureCustomerFor(invoice) {
+  const name = sanitizeString(invoice.customerName, 200);
+  if (!name) return null;
+
+  const linked = invoice.customerId
+    ? state.customers.find((c) => c.id === invoice.customerId)
+    : null;
+  const existing = linked
+    || state.customers.find((c) => (c.name || '').trim().toLowerCase() === name.toLowerCase())
+    || null;
+
+  const fields = {
+    name,
+    phone: sanitizeString(invoice.customerPhone, 50),
+    email: sanitizeString(invoice.customerEmail, 200),
+    tin: sanitizeString(invoice.customerTin, 50),
+    address: sanitizeString(invoice.customerAddress, 300),
+  };
+
+  if (existing) {
+    const changed = Object.entries(fields).some(([key, value]) => value && value !== (existing[key] || ''));
+    invoice.customerId = existing.id;
+    if (!changed) return { customer: existing, created: false };
+
+    const updated = { ...existing, ...fields, updatedAt: new Date().toISOString() };
+    await saveCustomer(updated);
+    // Keep the in-memory list in step, or a second save in this session would
+    // re-detect the same difference and write it again.
+    const idx = state.customers.findIndex((c) => c.id === updated.id);
+    if (idx !== -1) state.customers[idx] = updated;
+    return { customer: updated, created: false };
+  }
+
+  const created = {
+    id: uid('cust'),
+    ...fields,
+    notes: '',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  await saveCustomer(created);
+  state.customers.push(created);
+  invoice.customerId = created.id;
+  return { customer: created, created: true };
+}
+
 async function saveCurrentInvoice(statusOverride = null) {
   const invoice = collectInvoice();
   if (statusOverride) invoice.status = statusOverride;
@@ -487,8 +666,15 @@ async function saveCurrentInvoice(statusOverride = null) {
   }
 
   try {
+    // The customer is persisted BEFORE the invoice, so the invoice carries the
+    // link in a single save instead of being written twice.
+    const customer = await ensureCustomerFor(invoice);
     await saveInvoice(invoice);
     state.invoices = await getInvoices();
+    if (customer) {
+      state.customers = await getCustomers();
+      if (customer.created) toast(`New customer "${customer.customer.name}" saved`, 'success', 4500);
+    }
     toast(invoice.status === 'draft' ? 'Draft saved' : 'Invoice saved', 'success');
     return invoice;
   } catch (err) {
@@ -834,14 +1020,9 @@ function bindEvents() {
   });
   $('#invCustomer')?.addEventListener('change', (e) => {
     const c = state.customers.find((x) => x.id === e.target.value);
-    if (c) {
-      $('#invCustomerName').value = c.name || '';
-      $('#invCustomerPhone').value = c.phone || '';
-      $('#invCustomerEmail').value = c.email || '';
-      $('#invCustomerTin').value = c.tin || '';
-      $('#invCustomerAddress').value = c.address || '';
-    }
+    if (c) applyCustomerToForm(c);
   });
+  $('#invNewCustomerBtn')?.addEventListener('click', () => openNewCustomerModal());
   ['#invDiscount', '#invTaxRate', '#invShipping'].forEach((sel) => {
     $(sel)?.addEventListener('input', recalc);
   });
@@ -949,14 +1130,7 @@ async function init() {
     const customerId = params.get('customer');
     if (customerId) {
       const c = state.customers.find((x) => x.id === customerId);
-      if (c) {
-        $('#invCustomer').value = c.id;
-        $('#invCustomerName').value = c.name || '';
-        $('#invCustomerPhone').value = c.phone || '';
-        $('#invCustomerEmail').value = c.email || '';
-        $('#invCustomerTin').value = c.tin || '';
-        $('#invCustomerAddress').value = c.address || '';
-      }
+      if (c) applyCustomerToForm(c);
     }
   } else if (params.get('id')) {
     const id = params.get('id');

@@ -2075,6 +2075,83 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; lin
   font-size: 0.8rem;
 }
 
+/* ---------- Plan locks ----------
+   A control the current plan does not include. Locked, never hidden: the
+   control keeps its place in the form, so nothing jumps when a plan is
+   activated, and the user learns the feature exists — which is the whole
+   reason a free tier is offered.
+
+   Deliberately an AMBER treatment, not a disabled grey. Grey reads as
+   "broken"; amber with a label reads as "not yours yet", which is the actual
+   situation and the one worth paying to change. Nothing here is `disabled`,
+   because a disabled control cannot receive the press that opens the upgrade
+   prompt. */
+.pro-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  background: var(--gold-soft);
+  color: var(--gold-ink);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+/* The field: an amber wash, a pointer cursor, and the hint line explains why. */
+.field.is-locked > label,
+.field.is-locked > .field-label { color: var(--ink-soft); }
+.field.is-locked .input,
+.field.is-locked .select {
+  background: var(--gold-soft);
+  border-color: var(--gold);
+  cursor: pointer;
+}
+
+/* Inputs are made read-only rather than disabled so they stay in the tab
+   order — a keyboard user must be able to reach the control to hear why it is
+   locked. That means the focus ring has to survive the amber background. */
+.input.is-locked:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* Toolbar controls: the Monthly tab and the two export buttons. */
+.tab.is-locked { color: var(--ink-soft); }
+.tab.is-locked::after {
+  content: "PRO";
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: var(--radius-full);
+  background: var(--gold-soft);
+  color: var(--gold-ink);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  vertical-align: 1px;
+}
+
+.btn.is-locked { border-color: var(--gold); background: var(--gold-soft); color: var(--ink); }
+.btn.is-locked::after {
+  content: "PRO";
+  margin-left: 7px;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: var(--gold-soft);
+  color: var(--gold-ink);
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+/* What Pro actually adds, listed inside the upgrade prompt. */
+.upgrade-features {
+  list-style: none; margin: 10px 0 0; padding: 0;
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 0.82rem; color: var(--ink-soft);
+}
+.upgrade-features li { display: flex; gap: 7px; align-items: flex-start; }
+.upgrade-features li::before { content: "\2713"; color: var(--success); font-weight: 700; flex: none; }
+
 @media (min-width: 769px) {
   .plan-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -2085,7 +2162,7 @@ h1, h2, h3, h4, h5, h6 { font-family: var(--font-display); font-weight: 700; lin
    component never has to be rewritten to pick up the brand — and so the
    responsive overrides that follow still win at phone widths.
 
-   Placement matters: this block must stay ABOVE section 29 (Responsive).
+   Placement matters: this block must stay ABOVE section 31 (Responsive).
    Media queries add no specificity, so a rule here would otherwise override the
    phone compaction at 320–480px and start clipping the page title. */
 
@@ -2132,7 +2209,153 @@ h1, h2, h3, h4, h5, h6,
    3:1 WCAG threshold for non-text UI on both themes. */
 :focus-visible { outline: 2px solid var(--brand-500); outline-offset: 2px; }
 
-/* ---------- 30. Responsive (mobile-first) ----------
+/* ---------- 30. Feedback, rating & admin console ----------
+   The review form, the one-time dashboard nudge, the star widget, and the
+   vendor's licence desk. */
+
+.star-rating { display: flex; align-items: center; gap: 6px; }
+
+.star-btn {
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  padding: 0;
+  border: none; background: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color var(--speed) var(--ease), transform var(--speed) var(--ease);
+}
+.star-btn svg { width: 28px; height: 28px; }
+.star-btn:hover { transform: scale(1.08); }
+.star-btn.is-on { color: var(--gold); }
+.star-btn.is-on svg { fill: currentColor; }
+
+/* Live hover preview. `~` is what makes it read "up to here": the group hover
+   paints every star, then every star AFTER the hovered one is repainted empty.
+   The sibling rule outranks `.is-on` (0,3,0 vs 0,2,0), so the preview wins
+   while the pointer is down — which is the whole point of a preview. */
+.star-rating:hover .star-btn { color: var(--gold); }
+.star-rating:hover .star-btn svg { fill: currentColor; }
+.star-btn:hover ~ .star-btn { color: var(--ink-faint); }
+.star-btn:hover ~ .star-btn svg { fill: none; }
+
+/* Read-only stars in the "previous reviews" list. */
+.fb-stars-static { display: inline-flex; gap: 1px; flex: none; }
+.fb-stars-static span { color: var(--ink-faint); display: inline-grid; place-items: center; }
+.fb-stars-static span svg { width: 14px; height: 14px; }
+.fb-stars-static span.on { color: var(--gold); }
+.fb-stars-static span.on svg { fill: currentColor; }
+
+.feedback-list { display: flex; flex-direction: column; gap: 10px; }
+.feedback-item {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.fb-item-body { min-width: 0; font-size: 0.82rem; }
+.fb-item-body strong { display: block; }
+.fb-item-body .text-muted { overflow-wrap: anywhere; }
+
+/* Stage two: the review is saved, so the confirmation should feel like one. */
+.fb-thanks { text-align: center; padding: 6px 0 18px; }
+.fb-thanks-mark {
+  width: 52px; height: 52px; margin: 0 auto 12px;
+  display: grid; place-items: center;
+  border-radius: var(--radius-full);
+  background: var(--success-soft); color: var(--success);
+}
+.fb-thanks-mark svg { width: 26px; height: 26px; }
+.fb-thanks h4 { font-size: 1.05rem; margin-bottom: 4px; }
+
+/* ---------- The one-time nudge ----------
+   Appended to the END of the dashboard content column on purpose: anything
+   inserted above would push the dashboard's primary action down the page. */
+.feedback-nudge {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 16px; padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--gold);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.fn-mark {
+  flex: none; width: 38px; height: 38px;
+  display: grid; place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--gold-soft); color: var(--gold-ink);
+}
+.fn-mark svg { width: 20px; height: 20px; fill: currentColor; }
+.fn-body { min-width: 0; flex: 1 1 220px; display: flex; flex-direction: column; gap: 2px; }
+.fn-body strong { font-size: 0.9rem; }
+.fn-body span { font-size: 0.8rem; color: var(--ink-soft); }
+.fn-actions { display: flex; align-items: center; gap: 8px; flex: none; margin-left: auto; }
+
+/* ---------- The admin console ----------
+   A licence desk, so it should read as one: dense, plain, no decoration that
+   competes with the numbers. */
+
+/* Monospaced for anything a human has to read aloud or type back — licence
+   keys above all. A proportional font makes 0/O and 1/l ambiguous, and these
+   strings get read down a phone line. */
+.mono, .key-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.key-code { font-size: 0.8rem; letter-spacing: 0.02em; white-space: nowrap; }
+
+.admin-gate { display: grid; place-items: center; min-height: 60vh; padding: 20px 0; }
+.admin-gate-card { width: 100%; max-width: 380px; padding: 26px; text-align: left; }
+.admin-gate-card h2 { font-size: 1.15rem; margin-bottom: 6px; }
+.admin-gate-card > .text-muted { font-size: 0.86rem; margin-bottom: 16px; }
+.admin-gate-mark {
+  width: 48px; height: 48px; margin-bottom: 14px;
+  display: grid; place-items: center;
+  border-radius: var(--radius);
+  background: var(--brand-soft); color: var(--brand-ink);
+}
+.admin-gate-mark svg { width: 24px; height: 24px; }
+
+/* `auto-fit` rather than fixed columns: the console has to work at 320px as
+   well as 1600px, and a media query per breakpoint would only ever be right
+   for the widths someone remembered to check. */
+.admin-stats {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.admin-stat { padding: 14px 16px; }
+.admin-stat .as-value {
+  font-family: var(--font-display);
+  font-size: 1.35rem; font-weight: 800; line-height: 1.15;
+  color: var(--brand-ink);
+  font-variant-numeric: tabular-nums;
+}
+.admin-stat .as-label {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--ink-faint); margin-top: 3px;
+}
+.admin-stat .as-sub { font-size: 0.76rem; color: var(--ink-soft); margin-top: 2px; }
+
+/* Verdict panels: a licence check result, and the licence state on the device.
+   `good`/`bad` are the only two outcomes, so they are classes rather than a
+   colour argument — a caller cannot invent a third state by typo. */
+.admin-verdict {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 0.85rem;
+}
+.admin-verdict strong { font-size: 0.92rem; }
+.admin-verdict span { color: var(--ink-soft); overflow-wrap: anywhere; }
+.admin-verdict.good { border-left-color: var(--success); }
+.admin-verdict.good strong { color: var(--success); }
+.admin-verdict.bad { border-left-color: var(--danger); }
+.admin-verdict.bad strong { color: var(--danger); }
+
+.matrix-yes { color: var(--success); font-weight: 800; }
+
+/* ---------- 31. Responsive (mobile-first) ----------
    Base styles above already target the phone. These blocks add capability as
    the viewport grows, so nothing has to be un-done with a max-width override.
 

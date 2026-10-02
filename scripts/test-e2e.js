@@ -665,6 +665,24 @@ for (const cls of ['line-qty', 'line-price', 'line-disc', 'line-name']) {
 await shot('16-line-item-inputs.png');
 
 /* ---- Q2: signature + stamp upload, stored under their own keys ---- */
+
+/* Pro first.
+ *
+ * The signature and stamp uploaders are a Pro feature: on the free plan the
+ * picker is gated shut and routes the press to the upgrade prompt, so this
+ * section would fail for the right reason at the wrong layer. What is under
+ * test HERE is that artwork, once accepted, is stored under its own setting key
+ * and reaches the preview and the PDF — the gate itself belongs to
+ * `test-features.js`.
+ *
+ * Note the plan is not reset afterwards: rendering never consults it (the gate
+ * lives only on the two uploaders in settings.js), so the preview and PDF
+ * assertions further down still see the stored artwork. */
+await evaluate(`(async () => {
+  const m = await import('./js/licenseService.js');
+  return JSON.stringify(await m.setPlan('pro', { licenseKey: m.makeLicenseKey('pro') }));
+})()`);
+
 await goto('settings.html', 3000);
 await evaluate(`(async () => {
   const png = async (w, h, draw) => {

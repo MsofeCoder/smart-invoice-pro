@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Products</title>
-  <meta name="description" content="Manage your products and inventory offline.">
+  <title>Admin</title>
+  <meta name="description" content="Licence console, activation keys and usage for this installation.">
   <meta name="theme-color" content="#1B5E20">
   <!-- Icons: the SVG is the modern path, the .ico covers legacy /favicon.ico
        requests, and the 32px PNG stays for the oldest crawlers. -->
@@ -23,7 +23,7 @@
   <!-- Brand boot: applies the saved theme + brand palette before first paint (must stay render-blocking) -->
   <script src="js/brand-boot.js"></script>
 </head>
-<body data-page="products">
+<body data-page="admin">
 
   <div class="app-shell">
 
@@ -50,7 +50,7 @@
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           <span>Customers</span>
         </a>
-        <a class="nav-item active" href="products.html" data-nav="products">
+        <a class="nav-item" href="products.html" data-nav="products">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
           <span>Products</span>
           <span class="nav-badge hidden" id="navStockBadge">0</span>
@@ -65,7 +65,7 @@
           <span>Settings</span>
         </a>
         <div class="nav-label">System</div>
-        <a class="nav-item" href="admin.html" data-nav="admin">
+        <a class="nav-item active" href="admin.html" data-nav="admin">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
           <span>Admin</span>
         </a>
@@ -104,8 +104,8 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
         <div>
-          <div class="page-title">Products</div>
-          <div class="page-sub">Manage products & inventory</div>
+          <div class="page-title">Admin</div>
+          <div class="page-sub">Licence console &amp; activation keys</div>
         </div>
         <div class="topbar-spacer"></div>
         <span class="badge badge-gray hide-mobile" id="offlineBadge" style="display:none"><span class="badge-dot"></span> Offline</span>
@@ -116,46 +116,196 @@
         </button>
       </header>
 
-      <main class="content">
-        <!-- Re-entry point for the guided tour once it has been dismissed. -->
-        <button type="button" class="guide-hint no-print" data-action="help" data-tour-start>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
-          <span><strong>Not sure where to start?</strong> Show me around</span>
-        </button>
-        <div class="flex flex-wrap items-center gap-3 mb-4">
-          <div class="search-bar flex-1" style="min-width:220px; max-width:420px">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="search" class="input" id="productSearch" placeholder="Search products, SKU, barcode…" aria-label="Search products">
-          </div>
-          <div class="flex gap-2 flex-wrap">
-            <button class="chip active" data-cat="all">All</button>
-            <button class="chip" data-cat="low">Low Stock</button>
-            <button class="chip" data-cat="out">Out of Stock</button>
-          </div>
-          <div class="ml-auto flex gap-2">
-            <button class="btn btn-outline btn-sm" id="exportCsvBtn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Export CSV
-            </button>
-            <button class="btn btn-primary" id="addProductBtn" data-tour="product-list">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Add Product
-            </button>
+      <main class="content" id="content">
+
+        <!-- Unlock gate. The console issues licence keys, so it is kept behind a
+             passcode rather than sitting open for any end user who taps Admin.
+             js/admin.js is honest about what that gate is worth. -->
+        <div class="admin-gate" id="adminGate">
+          <div class="card admin-gate-card">
+            <div class="admin-gate-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+            </div>
+            <h2>Admin console</h2>
+            <p class="text-muted">Licence console, activation keys, usage and feedback for this installation.</p>
+            <div class="field">
+              <label for="adminPass">Passcode</label>
+              <input type="password" class="input" id="adminPass" autocomplete="current-password" placeholder="Enter the admin passcode">
+            </div>
+            <button class="btn btn-primary btn-block" id="adminUnlockBtn">Unlock</button>
+            <p class="hint text-center mt-3" id="adminDefaultHint"></p>
           </div>
         </div>
 
-        <div class="card">
-          <div class="table-wrap">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th>Product</th><th>SKU</th><th>Category</th><th class="num">Cost</th><th class="num">Price</th><th class="num">Stock</th><th>Status</th><th class="text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="productTableBody">
-                <tr><td colspan="8" class="text-center text-faint py-4">Loading…</td></tr>
-              </tbody>
-            </table>
+        <!-- Console -->
+        <div id="adminPanel" class="hidden">
+
+          <!-- Overview -->
+          <div class="card mb-4">
+            <div class="card-header">
+              <h3>This installation</h3>
+              <span class="ml-auto badge badge-gray" id="adminPlanBadge">Free</span>
+            </div>
+            <div class="card-body">
+              <div class="admin-stats" id="adminStats"></div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-12 gap-4">
+
+            <!-- Key generator -->
+            <div class="col-span-7 card">
+              <div class="card-header"><h3>Generate activation keys</h3></div>
+              <div class="card-body">
+                <p class="text-muted" style="font-size:0.86rem">
+                  Keys are minted on this device and handed to a customer, who enters one under
+                  <strong>Settings → Subscription</strong>. This build has no licence server, so the
+                  key is a checksum-verified code rather than a signed token — see the note at the
+                  bottom of this page.
+                </p>
+                <div class="grid grid-cols-2 gap-4 mt-3">
+                  <div class="field">
+                    <label for="keyPlanSelect">Plan</label>
+                    <select class="select" id="keyPlanSelect"></select>
+                  </div>
+                  <div class="field">
+                    <label for="keyCount">How many</label>
+                    <input type="number" class="input" id="keyCount" min="1" max="50" value="1">
+                  </div>
+                  <div class="field">
+                    <label for="keyDate">Issue date</label>
+                    <input type="date" class="input" id="keyDate">
+                  </div>
+                  <div class="field">
+                    <label for="keyNote">Customer / note</label>
+                    <input type="text" class="input" id="keyNote" maxlength="80" placeholder="e.g. Kilimo Bora Ltd">
+                  </div>
+                </div>
+                <div class="flex gap-2 flex-wrap mt-3">
+                  <button class="btn btn-primary" id="genKeysBtn">Generate keys</button>
+                  <button class="btn btn-outline" id="exportKeysBtn">Export ledger CSV</button>
+                  <button class="btn btn-outline" id="copyLastBtn">Copy last key</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Verifier -->
+            <div class="col-span-5 card">
+              <div class="card-header"><h3>Verify a key</h3></div>
+              <div class="card-body">
+                <p class="text-muted" style="font-size:0.86rem">
+                  Check a key a customer has sent you before troubleshooting their activation.
+                </p>
+                <div class="field mt-3">
+                  <label for="verifyKeyInput">Licence key</label>
+                  <input type="text" class="input mono" id="verifyKeyInput" placeholder="SIP-PRO-YYYYMMDD-XXXX" spellcheck="false" autocomplete="off">
+                </div>
+                <button class="btn btn-outline btn-block" id="verifyKeyBtn">Verify</button>
+                <div id="verifyResult" class="mt-3"></div>
+              </div>
+            </div>
+
+            <!-- Plan matrix -->
+            <div class="col-span-12 card">
+              <div class="card-header"><h3>Plan matrix</h3></div>
+              <div class="card-body">
+                <div class="table-wrap">
+                  <table class="table" id="planMatrixTable">
+                    <thead><tr><th>Feature</th></tr></thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- Licence control -->
+            <div class="col-span-12 card">
+              <div class="card-header"><h3>Licence on this device</h3></div>
+              <div class="card-body">
+                <div id="adminLicenseState" class="mb-3"></div>
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="field">
+                    <label for="adminPlanSelect">Plan</label>
+                    <select class="select" id="adminPlanSelect"></select>
+                  </div>
+                  <div class="field">
+                    <label for="adminKeyInput">Licence key</label>
+                    <input type="text" class="input mono" id="adminKeyInput" placeholder="SIP-PRO-YYYYMMDD-XXXX" spellcheck="false" autocomplete="off">
+                  </div>
+                </div>
+                <div class="flex gap-2 flex-wrap mt-3">
+                  <button class="btn btn-primary" id="adminActivateBtn">Activate on this device</button>
+                  <button class="btn btn-outline" id="adminMintBtn">Mint a matching key</button>
+                  <button class="btn btn-danger-outline" id="adminDeactivateBtn">Return to Free</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Key ledger -->
+            <div class="col-span-12 card">
+              <div class="card-header">
+                <h3>Issued keys</h3>
+                <span class="ml-auto text-muted" id="keySummary"></span>
+              </div>
+              <div class="card-body">
+                <div class="table-wrap">
+                  <table class="table">
+                    <thead>
+                      <tr>
+                        <th>Key</th><th>Plan</th><th>Issued</th><th>Note</th><th>Status</th><th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="keyTableBody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- Feedback inbox -->
+            <div class="col-span-12 card">
+              <div class="card-header">
+                <h3>Feedback inbox</h3>
+                <span class="ml-auto text-muted" id="feedbackSummary"></span>
+              </div>
+              <div class="card-body">
+                <div id="feedbackInbox"></div>
+                <div class="flex gap-2 flex-wrap mt-3">
+                  <button class="btn btn-outline btn-sm" id="exportFeedbackBtn">Export as CSV</button>
+                  <button class="btn btn-danger-outline btn-sm" id="clearFeedbackBtn">Clear inbox</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Console settings -->
+            <div class="col-span-12 card">
+              <div class="card-header"><h3>Console settings</h3></div>
+              <div class="card-body">
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="field">
+                    <label for="adminNewPass">New passcode</label>
+                    <input type="password" class="input" id="adminNewPass" autocomplete="new-password" placeholder="At least 4 characters">
+                    <span class="hint">Change this before handing the app to a customer</span>
+                  </div>
+                  <div class="field">
+                    <label for="adminNewPass2">Repeat passcode</label>
+                    <input type="password" class="input" id="adminNewPass2" autocomplete="new-password">
+                  </div>
+                </div>
+                <div class="flex gap-2 flex-wrap mt-3">
+                  <button class="btn btn-primary" id="adminPassSaveBtn">Save passcode</button>
+                  <button class="btn btn-outline" id="adminLockBtn">Lock console</button>
+                  <button class="btn btn-danger-outline" id="adminResetBtn">Clear console data</button>
+                </div>
+                <div class="gateway-note mt-3">
+                  <strong>What this console is, honestly.</strong>
+                  There is no backend behind this app, so nothing here can police a customer's
+                  device. The passcode keeps the panel out of a curious user's way, the keys are
+                  checksum-verified rather than cryptographically signed, and the ledger records what
+                  <em>this</em> device issued. Treat it as a licence desk, not a DRM system.
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </main>
@@ -193,6 +343,6 @@
 
   </div>
 
-  <script type="module" src="js/product.js"></script>
+  <script type="module" src="js/admin.js"></script>
 </body>
 </html>

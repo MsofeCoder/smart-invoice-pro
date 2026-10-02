@@ -6,11 +6,12 @@
   "scripts": {
     "icons": "node scripts/generate-icons.js",
     "serve": "node scripts/serve.js",
-    "test": "node scripts/test-core.js && node scripts/test-utils.js && node scripts/test-brand.js && node scripts/test-config.js && node scripts/test-license.js && node scripts/test-assets.js && node scripts/test-markup.js",
+    "test": "node scripts/test-core.js && node scripts/test-utils.js && node scripts/test-brand.js && node scripts/test-config.js && node scripts/test-license.js && node scripts/test-admin.js && node scripts/test-assets.js && node scripts/test-markup.js",
     "test:unit": "node scripts/test-core.js && node scripts/test-utils.js",
     "test:brand": "node scripts/test-brand.js",
     "test:config": "node scripts/test-config.js",
     "test:license": "node scripts/test-license.js",
+    "test:admin": "node scripts/test-admin.js",
     "test:assets": "node scripts/test-assets.js",
     "test:markup": "node scripts/test-markup.js",
     "test:e2e": "node scripts/e2e.js",
@@ -21,6 +22,7 @@
     "test:charts": "node scripts/e2e.js --suite=test-charts.js",
     "test:preview": "node scripts/e2e.js --suite=test-preview.js",
     "test:onboarding": "node scripts/e2e.js --suite=test-onboarding.js",
+    "test:features": "node scripts/e2e.js --suite=test-features.js",
     "test:live": "node scripts/e2e.js --suite=test-live.js",
     "test:all": "npm test && npm run test:e2e",
     "shots": "node scripts/e2e.js --shots"

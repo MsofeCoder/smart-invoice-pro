@@ -265,6 +265,57 @@ export function requireFeature(feature) {
 }
 
 /* ==========================================================================
+   Feature labels and the shared UI gate
+   ==========================================================================
+   The label map lives here, next to the plan definitions, because two very
+   different screens need it: the plan cards in Settings → Subscription (what a
+   plan *includes*) and the upgrade prompt (what a locked control *needs*).
+   Keeping one map is what stops "Custom brand colours" on a card and
+   "brand-customisation" in a dialog from being the same feature.
+   ========================================================================== */
+
+export const FEATURE_LABELS = {
+  invoices: 'Unlimited invoicing',
+  customers: 'Customer records',
+  products: 'Product & stock records',
+  reports: 'Business reports',
+  'pdf-export': 'PDF export',
+  'csv-export': 'CSV export',
+  'whatsapp-share': 'WhatsApp sharing',
+  'brand-customisation': 'Custom brand colours',
+  'custom-app-name': 'Renaming the app',
+  'signature-stamp': 'Digital signature & stamp',
+  'monthly-report': 'Monthly report download',
+  'no-watermark': 'No watermark',
+  'priority-support': 'Priority support',
+  'cloud-sync': 'Cloud sync',
+  'multi-user': 'Multiple users',
+  'multi-branch': 'Multiple branches',
+  'api-access': 'API access',
+};
+
+/** The sentence shown when a locked control is pressed. */
+export function featureGateMessage(feature) {
+  return `${FEATURE_LABELS[feature] || feature} is available on Pro and above.`;
+}
+
+/**
+ * Gate a UI action behind a feature id.
+ *
+ * Every lock in the app goes through here so the wording, the modal and the
+ * "which plan unlocks this" answer are identical no matter which control the
+ * user happened to press. Callers get a plain boolean, so the guard reads as
+ * `if (!(await gateFeature('x'))) return;` and cannot be half-applied.
+ *
+ * @returns {Promise<boolean>} `true` when the action may proceed.
+ */
+export async function gateFeature(feature) {
+  if (hasFeature(feature)) return true;
+  await showUpgradeModal(null, { reason: featureGateMessage(feature) });
+  return false;
+}
+
+/* ==========================================================================
    Presentation
    ========================================================================== */
 
@@ -299,6 +350,13 @@ export async function showUpgradeModal(quota, { reason } = {}) {
       <div class="text-muted" style="font-size:0.85rem">
         ${plan.invoiceLimitPerMonth === null ? 'Unlimited invoices' : `${plan.invoiceLimitPerMonth} invoices / month`}
       </div>
+      <ul class="upgrade-features">
+        ${(plan.features || [])
+          .filter((f) => CONFIG.paidFeatures?.includes(f))
+          .slice(0, 5)
+          .map((f) => `<li>${escapeHTML(FEATURE_LABELS[f] || f)}</li>`)
+          .join('')}
+      </ul>
     </div>`).join('');
 
   const quotaLine = quota && !quota.unlimited

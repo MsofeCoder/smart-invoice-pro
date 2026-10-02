@@ -17,6 +17,7 @@ import {
   resolveAppName, resolveAppTagline, DEFAULT_BRAND,
 } from './brand.js';
 import { initOnboarding } from './onboarding.js';
+import { initFeedback } from './feedback.js';
 
 /* ================= Brand + Theme =================
    brand-boot.js has already applied the cached palette before first paint.
@@ -155,7 +156,7 @@ function toggleTheme() {
 
 /* ================= Print =================
    Printing is paper. A dark-mode session would otherwise print near-white text
-   on a slate block. The print stylesheet (section 26 of css/styles.css) resets
+   on a slate block. The print stylesheet (section 27 of css/styles.css) resets
    the structural scale, but it cannot reach the BRAND tokens: js/brand.js writes
    those inline on <html>, and an inline custom property outranks every selector.
    So re-derive the light palette for the duration of the print job and restore
@@ -396,6 +397,13 @@ export async function initShell() {
      last: a first-run tour that opens before the dashboard has painted would
      spotlight skeletons. */
   await initOnboarding();
+
+  /* Feedback has the same two prerequisites as the guide — the storage layer
+     (reviews and the one-shot nudge flag live there) and the business profile
+     (the nudge names the app). It runs after onboarding because the nudge
+     deliberately waits for the tour to have been seen: two surfaces competing
+     for a new user's first minute is how a first impression goes wrong. */
+  await initFeedback();
 
   const themeBtn = $('#themeToggle');
   if (themeBtn) themeBtn.addEventListener('click', toggleTheme);

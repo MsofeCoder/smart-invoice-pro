@@ -146,6 +146,9 @@
           'csv-export',
           'whatsapp-share',
           'brand-customisation',
+          'custom-app-name',
+          'signature-stamp',
+          'monthly-report',
           'no-watermark',
           'priority-support',
         ],
@@ -167,6 +170,9 @@
           'csv-export',
           'whatsapp-share',
           'brand-customisation',
+          'custom-app-name',
+          'signature-stamp',
+          'monthly-report',
           'no-watermark',
           'priority-support',
           'cloud-sync',
@@ -177,8 +183,19 @@
       },
     },
 
-    /** Features gated behind a paid plan, for quick lookup. */
+    /**
+     * Features gated behind a paid plan, for quick lookup.
+     *
+     * The first three are the ones a business actually hits: they are the
+     * upsell the free tier exists to create, so each has a live check in the
+     * UI (Settings → App Name / Signature & Stamp, Reports → Monthly export).
+     * The rest are roadmap markers — declared so the plan matrix is honest,
+     * but nothing reads them yet because the features do not exist.
+     */
     paidFeatures: [
+      'custom-app-name',
+      'signature-stamp',
+      'monthly-report',
       'brand-customisation',
       'no-watermark',
       'cloud-sync',
@@ -186,6 +203,47 @@
       'multi-branch',
       'api-access',
     ],
+
+    /* ======================================================================
+       Feedback & rating — see js/feedback.js
+       ----------------------------------------------------------------------
+       A review prompt with no server behind it. The review is stored on the
+       device and the user is offered a one-tap way to actually send it.
+
+       Leave `email`/`whatsapp` blank and the send buttons open the user's own
+       WhatsApp contact picker / mail client with the text already composed —
+       no invented support address ships in the template. A reseller sets these
+       to their own support channels.
+       ====================================================================== */
+    feedback: {
+      /** Vendor support address. Blank = the user's mail client picks. */
+      email: '',
+      /** Vendor WhatsApp number in international form, e.g. '255712345678'. */
+      whatsapp: '',
+      /** Ask for a review once this many invoices exist. Never nags twice. */
+      promptAfterInvoices: 3,
+      categories: ['General', 'Something is broken', 'Feature request', 'Billing', 'Other'],
+    },
+
+    /* ======================================================================
+       Admin console — see js/admin.js
+       ----------------------------------------------------------------------
+       The admin page issues activation keys for OTHER installations: this
+       build has no backend, so the console runs on the vendor's own device.
+       Everything below is client-side and documented as such in js/admin.js.
+       ====================================================================== */
+    admin: {
+      /**
+       * Passcode for the admin console. A local gate, not a security boundary —
+       * it keeps the panel out of a curious end-user's way, nothing more. The
+       * owner is expected to change it on first use.
+       */
+      defaultPasscode: 'admin123',
+      /** Keys are minted in batches; this caps one batch. */
+      maxKeysPerBatch: 50,
+      /** Feedback stored on this device before the admin inbox warns about it. */
+      feedbackWarnThreshold: 25,
+    },
 
     /* ======================================================================
        Payment gateways — local Tanzanian processors.
@@ -302,6 +360,16 @@
     return getPlan(planId).features.indexOf(feature) !== -1;
   }
 
+  /** Admin-console settings, with defensive defaults. */
+  function adminConfig() {
+    return CONFIG.admin || { defaultPasscode: 'admin123', maxKeysPerBatch: 50, feedbackWarnThreshold: 25 };
+  }
+
+  /** Feedback settings, with defensive defaults. */
+  function feedbackConfig() {
+    return CONFIG.feedback || { email: '', whatsapp: '', promptAfterInvoices: 3, categories: ['General', 'Other'] };
+  }
+
   window.APP_CONFIG = Object.freeze(CONFIG);
 
   window.AppConfig = Object.freeze({
@@ -314,5 +382,7 @@
     removeStorage: removeStorage,
     getPlan: getPlan,
     planHasFeature: planHasFeature,
+    adminConfig: adminConfig,
+    feedbackConfig: feedbackConfig,
   });
 })();

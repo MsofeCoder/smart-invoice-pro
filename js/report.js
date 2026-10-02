@@ -12,6 +12,7 @@ import { exportCSV } from './export.js';
 import { initShell } from './shell.js';
 import { loadBrandSync, paletteToCss, pdfColors } from './brand.js';
 import { fallbackBusinessName } from './config.js';
+import { loadLicense, hasFeature, gateFeature, featureGateMessage } from './licenseService.js';
 
 let state = {
   invoices: [],
@@ -201,8 +202,47 @@ function renderAll() {
   renderDonut(invoices);
 }
 
+/* ================= Plan gate =================
+   Viewing a monthly report is free; taking it off the device is not. So the
+   gate sits on the two DOWNLOAD paths and nowhere else — the tab still renders
+   the figures, the toolbar just says what the download costs.
+
+   The lock is reflected on the controls *before* the press, because a dialog
+   that appears after the user has already committed to an action reads as a
+   failure rather than an offer. */
+
+/** True when the monthly period is selected on a plan that may not export it. */
+function monthlyLocked() {
+  return state.period === 'monthly' && !hasFeature('monthly-report');
+}
+
+/** Paint the lock state onto the Monthly tab and the two export buttons. */
+function refreshExportLocks() {
+  const locked = monthlyLocked();
+  const tab = $('.tab[data-period="monthly"]');
+  if (tab) {
+    tab.classList.toggle('is-locked', locked);
+    tab.setAttribute('aria-label', locked ? `Monthly — ${featureGateMessage('monthly-report')}` : 'Monthly');
+  }
+  for (const sel of ['#exportPdfBtn', '#exportCsvBtn']) {
+    const btn = $(sel);
+    if (!btn) continue;
+    btn.classList.toggle('is-locked', locked);
+    if (locked) btn.setAttribute('aria-disabled', 'true');
+    else btn.removeAttribute('aria-disabled');
+  }
+}
+
+/** Shared guard for both download paths. `true` when the export may proceed. */
+async function allowMonthlyExport() {
+  if (!monthlyLocked()) return true;
+  await gateFeature('monthly-report');
+  return false;
+}
+
 /* ================= Export ================= */
-function exportReportCSV() {
+async function exportReportCSV() {
+  if (!(await allowMonthlyExport())) return;
   const invoices = enrichInvoices().filter((i) => i.status !== 'draft' && i.status !== 'cancelled');
   const rows = invoices.map((inv) => ({
     'Invoice No': inv.number || '',
@@ -219,7 +259,8 @@ function exportReportCSV() {
   toast('Report exported', 'success');
 }
 
-function exportReportPDF() {
+async function exportReportPDF() {
+  if (!(await allowMonthlyExport())) return;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const pageW = doc.internal.pageSize.getWidth();
@@ -326,6 +367,9 @@ ${paletteToCss(loadBrandSync(), 'light')}
 
 async function init() {
   await initShell();
+  // The plan decides whether a monthly download is allowed, so it must be known
+  // before the toolbar is painted or the lock would flash on late.
+  await loadLicense();
   const [invoices, customers, products, payments, currency, company] = await Promise.all([
     getInvoices(),
     getCustomers(),
@@ -347,9 +391,12 @@ async function init() {
       $$('.tab[data-period]').forEach((t) => t.classList.remove('active'));
       tab.classList.add('active');
       state.period = tab.dataset.period;
+      // The lock belongs to the Monthly period, so it moves with the tab.
+      refreshExportLocks();
       renderAll();
     });
   });
+  refreshExportLocks();
   // exportReportPDF builds the document synchronously, so it needs the loading
   // state to be painted first (withLoading yields a frame before running it).
   $('#exportPdfBtn')?.addEventListener('click', (e) => withLoading(e.currentTarget, exportReportPDF));

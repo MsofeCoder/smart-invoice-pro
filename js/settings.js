@@ -13,6 +13,7 @@ import {
 } from './config.js';
 import {
   loadLicense, getLicense, setPlan, makeLicenseKey, checkInvoiceQuota, resetLicense,
+  hasFeature, gateFeature, featureGateMessage, FEATURE_LABELS,
 } from './licenseService.js';
 import {
   PRESETS, SIDEBAR_STYLES, DEFAULT_BRAND, RADIUS_MIN, RADIUS_MAX,
@@ -351,16 +352,80 @@ function renderArtwork() {
 }
 
 /**
+ * Mark a control as locked by the current plan.
+ *
+ * Locked, never hidden. A feature the user cannot see is a feature they will
+ * never upgrade for, and discoverability is the entire point of a free tier —
+ * so the control keeps its place in the form (the layout does not jump when a
+ * plan is activated) and gains a "Pro" tag beside its label.
+ */
+function markLocked(el, feature) {
+  el.classList.add('is-locked');
+  const field = el.closest('.field');
+  if (!field) return;
+  field.classList.add('is-locked');
+  const label = field.querySelector('label, .field-label');
+  if (!label || label.querySelector('.pro-tag')) return;
+
+  const msg = featureGateMessage(feature);
+
+  // The visible tag is aria-hidden, and it has to be.
+  //
+  // It sits INSIDE the <label>, and a control's accessible name is computed
+  // from its label's text — so a plain tag here renames the field to
+  // "App Name Pro". That is not the name of the field, and it silently breaks
+  // the contract `test-a11y.js` enforces. A field's name is its name; "Pro" is
+  // a qualifier, and a qualifier is a description.
+  label.insertAdjacentHTML(
+    'beforeend',
+    ` <span class="pro-tag" aria-hidden="true" title="${escapeHTML(msg)}">Pro</span>`,
+  );
+
+  // So the qualifier is delivered as a description instead, which is what
+  // aria-describedby is for. A screen reader now announces
+  // "App Name, available on the Pro plan, read only" — the name stays intact
+  // and the reason the field will not accept input is still conveyed.
+  const noteId = `${el.id || 'locked'}-pro-note`;
+  if (!document.getElementById(noteId)) {
+    const note = document.createElement('span');
+    note.id = noteId;
+    note.className = 'sr-only';
+    note.textContent = msg;
+    field.appendChild(note);
+  }
+  const refs = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+  if (!refs.includes(noteId)) el.setAttribute('aria-describedby', [...refs, noteId].join(' '));
+}
+
+/**
  * Wire one artwork uploader: a file input, a preview box and a Remove button.
  *
  * The three of them (logo, signature, stamp) differ only in their element ids,
- * their empty-state wording and which `state` key they write, and they all need
- * the same guards — so they share one binder rather than three near-identical
- * listeners.
+ * their empty-state wording, which `state` key they write and whether the plan
+ * gates them, and they all need the same guards — so they share one binder
+ * rather than three near-identical listeners.
+ *
+ * `feature` is optional. The logo is free on every plan; the signature and the
+ * stamp are Pro, so their pickers stay shut and route the press to the upgrade
+ * prompt. Existing artwork is still previewed — a lapsed Pro user's signature
+ * is not deleted, it just cannot be replaced.
  */
-function bindArtworkUploader({ input, remove, empty, label, key }) {
+function bindArtworkUploader({ input, remove, empty, label, key, feature = null }) {
   const inputEl = $(input);
   if (!inputEl) return;
+
+  if (feature && !hasFeature(feature)) {
+    markLocked(inputEl, feature);
+    $(remove)?.setAttribute('disabled', 'disabled');
+    // preventDefault on the click stops the file picker opening at all, so the
+    // gate is the first thing the user meets rather than a rejection after
+    // they have chosen a file.
+    inputEl.addEventListener('click', (e) => {
+      e.preventDefault();
+      gateFeature(feature);
+    });
+    return;
+  }
 
   inputEl.addEventListener('change', async (e) => {
     const file = e.target.files[0];
@@ -380,6 +445,46 @@ function bindArtworkUploader({ input, remove, empty, label, key }) {
     renderArtwork();
     inputEl.value = '';
   });
+}
+
+/**
+ * Reflect the active plan across the Settings screen.
+ *
+ * Runs after `loadLicense()`, because the plan is what decides the answer.
+ *
+ * The App Name and App Tagline are locked together: they are one white-label
+ * identity control (the tagline is the line printed under the name), so letting
+ * a free user rename half of it would be arbitrary. The Business Name below is
+ * NOT locked — that is the customer's own data, printed on their invoices,
+ * and taking it hostage would make the free tier useless rather than tempting.
+ *
+ * Inputs are made read-only rather than disabled: a disabled input leaves the
+ * tab order and announces nothing, whereas read-only keeps it reachable so a
+ * keyboard or screen-reader user can get to the upgrade prompt.
+ */
+function applyPlanLocks() {
+  if (hasFeature('custom-app-name')) return;
+
+  for (const selector of ['#brandAppName', '#brandAppTagline']) {
+    const el = $(selector);
+    if (!el) continue;
+    markLocked(el, 'custom-app-name');
+    el.setAttribute('readonly', 'readonly');
+    el.setAttribute('aria-readonly', 'true');
+    const unlock = (e) => {
+      e.preventDefault();
+      el.blur();
+      gateFeature('custom-app-name');
+    };
+    el.addEventListener('click', unlock);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') unlock(e);
+    });
+  }
+
+  // The signature and stamp uploaders carry their gate into the binder, so the
+  // lock badge and the blocked picker live in one place. See
+  // bindArtworkUploader().
 }
 
 async function loadSettings() {
@@ -548,25 +653,10 @@ async function handleReset() {
 /* ================= Subscription, plans & payment gateways =================
    UI placeholders. Nothing here charges anyone: `enabled` is false for every
    gateway in js/app.config.js until real credentials and a server-side callback
-   exist. See the warning rendered next to the gateway list. */
+   exist. See the warning rendered next to the gateway list.
 
-/** Human labels for the feature ids declared in the config. */
-const FEATURE_LABELS = {
-  invoices: 'Unlimited invoicing',
-  customers: 'Customer records',
-  products: 'Product & stock records',
-  reports: 'Business reports',
-  'pdf-export': 'PDF export',
-  'csv-export': 'CSV export',
-  'whatsapp-share': 'WhatsApp sharing',
-  'brand-customisation': 'Custom brand colours',
-  'no-watermark': 'No watermark',
-  'priority-support': 'Priority support',
-  'cloud-sync': 'Cloud sync',
-  'multi-user': 'Multiple users',
-  'multi-branch': 'Multiple branches',
-  'api-access': 'API access',
-};
+   Feature labels come from js/licenseService.js so the plan cards and the
+   upgrade prompt can never describe the same feature two different ways. */
 
 function planPriceLabel(plan) {
   if (plan.price === null || plan.price === undefined) return 'Contact us';
@@ -715,11 +805,15 @@ function initSubscriptionUI() {
 
 async function init() {
   await initShell();
+  // The plan decides which controls are usable, so it is loaded before any of
+  // them is wired — a lock applied after binding would leave the first click
+  // unguarded.
   await loadLicense();
   await loadSettings();
   populateForm();
   initBrandUI();
   initSubscriptionUI();
+  applyPlanLocks();
 
   $('#saveSettingsBtn')?.addEventListener('click', saveSettings);
   $('#backupBtn')?.addEventListener('click', (e) => handleBackup(e.currentTarget));
@@ -733,9 +827,10 @@ async function init() {
   $('#saveSettingsBtn')?.addEventListener('click', () => refreshSubscriptionUI());
 
   // Uploaded artwork — one binder for the logo, the signature and the stamp.
+  // Only the logo is free; the other two carry their plan gate into the binder.
   bindArtworkUploader({ input: '#setLogoInput', remove: '#setLogoRemove', empty: 'No logo', label: 'Logo', key: 'logoDataUrl' });
-  bindArtworkUploader({ input: '#setSignatureInput', remove: '#setSignatureRemove', empty: 'None', label: 'Signature', key: 'signatureDataUrl' });
-  bindArtworkUploader({ input: '#setStampInput', remove: '#setStampRemove', empty: 'None', label: 'Stamp', key: 'stampDataUrl' });
+  bindArtworkUploader({ input: '#setSignatureInput', remove: '#setSignatureRemove', empty: 'None', label: 'Signature', key: 'signatureDataUrl', feature: 'signature-stamp' });
+  bindArtworkUploader({ input: '#setStampInput', remove: '#setStampRemove', empty: 'None', label: 'Stamp', key: 'stampDataUrl', feature: 'signature-stamp' });
 }
 
 document.addEventListener('DOMContentLoaded', () => {

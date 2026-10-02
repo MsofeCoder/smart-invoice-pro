@@ -21,7 +21,7 @@ const assert = (name, cond, detail = '') => {
   else { fail++; console.log(`  \u2717 ${name}${detail ? ' \u2014 ' + detail : ''}`); }
 };
 
-const PAGES = ['index.html', 'invoice.html', 'customers.html', 'products.html', 'reports.html', 'settings.html'];
+const PAGES = ['index.html', 'invoice.html', 'customers.html', 'products.html', 'reports.html', 'settings.html', 'admin.html'];
 const css = fs.readFileSync(path.join(ROOT, 'css', 'styles.css'), 'utf8');
 const definedClasses = new Set((css.match(/\.[a-zA-Z][a-zA-Z0-9_-]*/g) || []).map((c) => c.slice(1)));
 
@@ -625,12 +625,24 @@ console.log('\n== Onboarding guide contract ==');
   };
   const onboardingSrc = fs.readFileSync(path.join(ROOT, 'js', 'onboarding.js'), 'utf8');
 
-  // 8a. Every page ships the launcher and a way back into the tour.
+  // 8a. Every page ships the launcher; every END-USER page also ships a way
+  //     back into the tour.
+  //
+  //     admin.html is the exception, and deliberately so: it is the vendor's
+  //     licence desk, not a surface a first-time customer is ever sent to, so a
+  //     "New here? Take the guided tour" banner on it would be advice aimed at
+  //     the wrong person. The launcher is still asserted there because it comes
+  //     from the shared shell — the manual should be one tap away everywhere.
+  const END_USER_PAGES = PAGES.filter((p) => p !== 'admin.html');
   for (const page of PAGES) {
     const html = fs.readFileSync(path.join(ROOT, page), 'utf8');
     assert(`${page} has the Guide launcher`, /id="helpBtn"[^>]*class="guide-card"|class="guide-card[^"]*"[^>]*id="helpBtn"/.test(html));
-    assert(`${page} has a tour re-entry affordance`, /data-tour-start/.test(html));
+    if (END_USER_PAGES.includes(page)) {
+      assert(`${page} has a tour re-entry affordance`, /data-tour-start/.test(html));
+    }
   }
+  assert('the tour re-entry contract covers every end-user page',
+    END_USER_PAGES.length === 6, END_USER_PAGES.length);
 
   // 8b. Every spotlight anchor a step declares must exist on that step's page.
   //     Parsed straight out of the content array so the two can never drift.
@@ -680,6 +692,161 @@ console.log('\n== Onboarding guide contract ==');
   for (const sel of ['.tour-root', '.help-overlay', '.guide-card', '.no-print']) {
     assert(`the print stylesheet hides ${sel}`, printBody.includes(sel), sel);
   }
+}
+
+/* ---------- 9. Monetization gates, feedback and the admin console ----------
+   These three features all fail the same silent way: a renamed id, a feature
+   id typo, or a gate wired to the wrong control leaves the app looking
+   perfectly healthy while charging nobody and locking nothing. None of it
+   raises an error, so assert the whole contract statically.
+
+   The behavioural half (does pressing the locked control actually open the
+   upgrade prompt, does the admin console unlock) is asserted by
+   scripts/test-features.js against the real app. */
+console.log('\n== Monetization gates, feedback & admin console ==');
+{
+  const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  const configSrc = read('js/app.config.js');
+  const licenseSrc = read('js/licenseService.js');
+  const settingsSrc = read('js/settings.js');
+  const reportSrc = read('js/report.js');
+  const invoiceSrc = read('js/invoice.js');
+  const feedbackSrc = read('js/feedback.js');
+  const adminSrc = read('js/admin.js');
+  const adminHtml = read('admin.html');
+  const shellSrc = read('js/shell.js');
+  const swSrc = read('sw.js');
+
+  // 9a. The three gated features must be declared once, paid, and absent from
+  //     the free plan. A feature id that exists in the UI but not in the config
+  //     would make `hasFeature()` return false for EVERY plan — locking a
+  //     paying customer out of what they bought.
+  //
+  //     The plans are parsed out of their own `features` array rather than
+  //     matched with a `free:[\s\S]*?'id'` pattern: that pattern is lazy but
+  //     unbounded, so it happily runs past the end of the free plan and finds
+  //     the id on pro — passing while asserting the exact opposite.
+  const planFeatures = (planId) => {
+    const m = configSrc.match(new RegExp(`\\b${planId}:\\s*\\{[\\s\\S]*?features:\\s*\\[([\\s\\S]*?)\\]`));
+    return m ? [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]) : [];
+  };
+  const freeFeatures = planFeatures('free');
+  const proFeatures = planFeatures('pro');
+  assert('the free plan feature list was parsed', freeFeatures.length >= 5, freeFeatures.length);
+  assert('the pro plan feature list was parsed', proFeatures.length >= 8, proFeatures.length);
+
+  const GATED = ['custom-app-name', 'signature-stamp', 'monthly-report'];
+  for (const feature of GATED) {
+    assert(`config declares the "${feature}" feature id`, configSrc.includes(`'${feature}'`));
+    assert(`"${feature}" is listed in paidFeatures`,
+      new RegExp(`paidFeatures:[\\s\\S]*?'${feature}'`).test(configSrc));
+    assert(`"${feature}" is on the pro plan`, proFeatures.includes(feature), proFeatures.join(','));
+    assert(`"${feature}" is NOT on the free plan`, !freeFeatures.includes(feature), freeFeatures.join(','));
+  }
+
+  // 9b. Every paid feature needs a human label, or the upgrade prompt prints a
+  //     raw kebab-case id at a customer.
+  const paidBlock = (configSrc.match(/paidFeatures:\s*\[([\s\S]*?)\]/) || [, ''])[1];
+  const paidIds = [...paidBlock.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  assert('paidFeatures is non-empty', paidIds.length >= 3, paidIds.length);
+  const unlabelled = paidIds.filter((id) => !new RegExp(`'${id}':`).test(licenseSrc));
+  assert('every paid feature has a FEATURE_LABELS entry', unlabelled.length === 0, unlabelled.join(', '));
+
+  // 9c. The shared gate exists and is what the UI calls.
+  assert('licenseService exports gateFeature', /export async function gateFeature\s*\(/.test(licenseSrc));
+  assert('licenseService exports FEATURE_LABELS', /export const FEATURE_LABELS\s*=/.test(licenseSrc));
+  assert('gateFeature routes to showUpgradeModal', /gateFeature[\s\S]*?await showUpgradeModal\(/.test(licenseSrc));
+
+  // 9d. Settings locks the app name and the two artwork uploaders, and does NOT
+  //     lock the logo or the Business Name. The Business Name is the customer's
+  //     own data and is printed on their invoices — taking it hostage would make
+  //     the free tier useless rather than tempting, which is the opposite of the
+  //     intent.
+  assert('settings.js locks the app name', /brandAppName/.test(settingsSrc) && /custom-app-name/.test(settingsSrc));
+  assert('settings.js locks the app tagline too', /brandAppTagline/.test(settingsSrc));
+  assert('settings.js gates the signature uploader', /setSignatureInput'[\s\S]{0,200}feature: 'signature-stamp'/.test(settingsSrc));
+  assert('settings.js gates the stamp uploader', /setStampInput'[\s\S]{0,200}feature: 'signature-stamp'/.test(settingsSrc));
+  assert('settings.js does NOT gate the logo uploader', !/setLogoInput'[^)]*feature:/.test(settingsSrc));
+  assert('settings.js does NOT lock the business name field', !/#setBusinessName[\s\S]{0,120}markLocked/.test(settingsSrc));
+  assert('settings.js applies the locks during init', /applyPlanLocks\s*\(\s*\)/.test(settingsSrc));
+  assert('settings.js loads the licence before applying locks',
+    /await loadLicense\(\)[\s\S]*?applyPlanLocks\(\)/.test(settingsSrc));
+
+  // 9e. Reports gate the MONTHLY download only. Daily/weekly/yearly must stay
+  //     exportable, or the free tier loses the feature the plan cards promise.
+  assert('report.js gates the monthly period', /monthlyLocked[\s\S]*?'monthly'[\s\S]*?'monthly-report'/.test(reportSrc));
+  assert('report.js guards the CSV export', /exportReportCSV[\s\S]{0,200}allowMonthlyExport/.test(reportSrc));
+  assert('report.js guards the PDF export', /exportReportPDF[\s\S]{0,200}allowMonthlyExport/.test(reportSrc));
+  assert('report.js reflects the lock on the toolbar', /refreshExportLocks\s*\(\s*\)/.test(reportSrc));
+
+  // 9f. The inline customer feature: the editor offers it, and the save path
+  //     persists the customer before the invoice so one save links both.
+  assert('invoice.html offers the inline new-customer control', /id="invNewCustomerBtn"/.test(read('invoice.html')));
+  assert('invoice.js binds the inline new-customer control', /\$\('#invNewCustomerBtn'\)\?\.addEventListener/.test(invoiceSrc));
+  assert('invoice.js writes customers through saveCustomer', /import\s*\{[\s\S]*?saveCustomer[\s\S]*?\}\s*from\s*'\.\/storageService\.js'/.test(invoiceSrc));
+  assert('invoice.js auto-saves the customer on invoice save', /ensureCustomerFor\s*\(\s*invoice\s*\)/.test(invoiceSrc));
+  assert('the customer is persisted BEFORE the invoice',
+    invoiceSrc.indexOf('await ensureCustomerFor(invoice)') < invoiceSrc.indexOf('await saveInvoice(invoice)', invoiceSrc.indexOf('await ensureCustomerFor(invoice)')));
+  assert('the customer form is filled through one shared helper', /function applyCustomerToForm\s*\(/.test(invoiceSrc));
+
+  // 9g. Feedback is reachable from every page and wired by the shared shell.
+  for (const page of PAGES) {
+    const html = read(page);
+    assert(`${page} has the Feedback launcher`, /id="feedbackBtn"[^>]*data-action="feedback"/.test(html));
+  }
+  assert('shell.js imports the feedback module', /from\s+'\.\/feedback\.js'/.test(shellSrc));
+  assert('shell.js starts feedback during initShell', /await\s+initFeedback\s*\(\s*\)/.test(shellSrc));
+  assert('feedback.js delegates its entry points', /data-action="feedback"/.test(feedbackSrc));
+  assert('feedback.js never competes with the first-run tour', /onboardingSeen/.test(feedbackSrc));
+  assert('feedback.js asks only once', /NUDGE_KEY|feedbackAsked/.test(feedbackSrc));
+  assert('feedback.js can compose a WhatsApp message', /whatsappUrl/.test(feedbackSrc));
+
+  // 9h. The admin page is reachable from every page's sidebar.
+  for (const page of PAGES) {
+    assert(`${page} links to the admin console`, /href="admin\.html" data-nav="admin"/.test(read(page)));
+  }
+
+  // 9i. Every element the admin module queries must exist on the admin page.
+  //     A renamed id is the single most likely way to break the console, and it
+  //     fails as a silent `?.` no-op rather than an error.
+  const queried = [...new Set([...adminSrc.matchAll(/\$\('#([A-Za-z][\w-]*)'/g)].map((m) => m[1]))];
+  assert('admin.js queries a substantial set of elements', queried.length >= 25, queried.length);
+  const missing = queried.filter((id) => !adminHtml.includes(`id="${id}"`));
+  assert('every id admin.js queries exists in admin.html', missing.length === 0, missing.join(', '));
+
+  // 9j. The admin console is a console: the passcode gate and the plan matrix
+  //     must both be present, or "professional admin panel" is just a page of
+  //     stat cards.
+  assert('admin.html ships the passcode gate', /id="adminGate"/.test(adminHtml) && /type="password" class="input" id="adminPass"/.test(adminHtml));
+  assert('admin.html ships the plan matrix', /id="planMatrixTable"/.test(adminHtml));
+  assert('admin.html ships the key ledger', /id="keyTableBody"/.test(adminHtml));
+  assert('admin.html ships the feedback inbox', /id="feedbackInbox"/.test(adminHtml));
+
+  // The ledger's pure logic lives in its own DOM-free module so it can be
+  // unit-tested; the page module must not grow a second copy of it.
+  const adminKeysSrc = read('js/adminKeys.js');
+  assert('admin.js imports the ledger logic', /from\s+'\.\/adminKeys\.js'/.test(adminSrc));
+  assert('admin.js hashes the passcode rather than storing it',
+    /hashPasscode/.test(adminKeysSrc) && !/passcode:\s*next/.test(adminSrc));
+  assert('the passcode hash is honest about what it is', /not a password hash/i.test(adminKeysSrc));
+  assert('the key batch is built by the tested generator', /buildKeyBatch/.test(adminSrc));
+  assert('admin.js mints keys through makeLicenseKey', /makeLicenseKey/.test(adminSrc));
+  assert('admin.js verifies keys through inspectKey', /inspectKey/.test(adminSrc));
+
+  // 9k. Everything new ships offline.
+  for (const asset of ['./admin.html', './js/admin.js', './js/adminKeys.js', './js/feedback.js']) {
+    assert(`sw precaches ${asset}`, swSrc.includes(`'${asset}'`), asset);
+  }
+
+  // 9l. The CSS the new surfaces depend on.
+  for (const cls of ['.star-rating', '.star-btn', '.feedback-item', '.feedback-nudge', '.pro-tag', '.upgrade-features', '.is-locked', '.admin-gate', '.admin-stats', '.admin-verdict', '.key-code', '.mono']) {
+    assert(`css defines ${cls}`, definedClasses.has(cls.slice(1)), cls);
+  }
+  // A locked control must never be `disabled`: a disabled element cannot
+  // receive the press that opens the upgrade prompt, so the upsell would be
+  // unreachable for exactly the users it is aimed at.
+  assert('the plan lock does not rely on [disabled]',
+    !/\.is-locked[^{]*\{[^}]*pointer-events\s*:\s*none/.test(css));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

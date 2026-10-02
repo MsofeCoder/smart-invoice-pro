@@ -12,6 +12,7 @@ It is a **white-label template**: no product name, logo, colour or tagline is ba
 - **Dashboard** — Today's sales, monthly sales, pending payments, paid invoices, revenue, outstanding balances, customer/product counts, quick actions, recent invoices, sales chart & status donut
 - **Invoice Generator** — Company header, bill-to/ship-to, invoice number, issue & due dates, payment terms, status, line items, discounts (per-item & whole-invoice, % or fixed), tax (VAT / custom / withholding / none), shipping, grand total, **amount in words**, QR code, signature & stamp block, notes & footer
 - **Customers** — Full database with name, phone, email, TIN, address, purchase history, outstanding balance, notes; search, filter, edit, delete, CSV export
+- **Inline customer creation** — the moment you raise an invoice for someone new, a **+ New** button opens the customer form without leaving the editor, and saving writes them straight into the customer database and selects them on the invoice. Type a brand-new name into the customer field and just save: the customer is created for you and the invoice is linked to them. Re-saving the same invoice updates the existing record instead of cloning it, and a same-name customer is reused rather than duplicated.
 - **Products** — Name, description, SKU, barcode, category, unit, cost price, selling price, tax, discount, stock, low-stock alerts, image, status; search, filter, edit, delete, CSV export
 - **Reports** — Daily / weekly / monthly / yearly: revenue, profit, outstanding, top customers, top products, invoice status donut; Export PDF, Export CSV, Print
 
@@ -43,10 +44,38 @@ Every business can make the app *theirs* — no code, no rebuild, no designer.
 - **Three plans** (`free` / `pro` / `enterprise`) defined in config, with per-plan feature lists and limits
 - **Free tier cap** — 10 invoices per calendar month, counted from the invoice records themselves rather than a stored counter (a counter drifts on retry, restore or clock change)
 - **Upgrade modal** that fires the moment a limit is reached, showing exactly what the plan allows and what Pro adds
+- **Three Pro-only capabilities**, all gated through one shared `gateFeature()` so they cannot drift apart:
+  1. **Renaming the app** (the app name and tagline in Settings). The **Business Name and the logo stay free** — those are the customer's own invoice identity, and locking them would make the free tier useless rather than tempting.
+  2. **Digital signature & company stamp** uploads. The logo uploader is deliberately *not* gated.
+  3. **Monthly report download** — the monthly figures stay fully readable; only taking them off the device costs money. Daily / weekly / yearly exports stay free.
+- **Locked, never hidden.** A gated control keeps its place in the UI, gains a `Pro` tag, and opens the upgrade prompt *when pressed*. A `disabled` button cannot receive that press, and a hidden feature is one nobody upgrades for.
 - **Licence keys** — `SIP-<PLAN>-<YYYYMMDD>-<CHECKSUM>`, verified offline
 - **Payment gateway hooks** — AzamPay and Selcom stubbed with M-Pesa / Tigo Pesa / Airtel Money / HaloPesa method lists, sandbox mode, and a clear warning never to place live API secrets in a browser
 
 > **Honest by design.** The free-tier gate is a client-side business nudge, not a security boundary — anyone can edit local storage. The licence checksum catches typos, not forgery. Gate something that matters on a server.
+
+### Feedback & rating
+- **Two-stage prompt** — rate with stars and say a few words, then choose *how* to send it. Nothing is sent behind the user's back.
+- **Works with no backend and no network.** The review is written to the same IndexedDB the invoices live in, then handed over pre-composed via **WhatsApp**, **email**, or **copy to clipboard**. WhatsApp is not a consolation prize here — it is how a Tanzanian SME contacts a supplier anyway.
+- **The Copy button degrades honestly.** `navigator.clipboard` is unavailable in a non-secure context and refuses when the document is unfocused, so there is a legacy `execCommand` fallback — and if *both* fail the review is **not** recorded as sent and the user is told. Marking a review "sent" when nothing left the device is the one lie this feature must not tell.
+- **Accessible star widget** — a real ARIA `radiogroup` with roving tabindex, where `←`/`→` both move and select. A five-button group with five tab stops is five extra presses to get past.
+- **Asks exactly once, and only when it is welcome.** The dashboard nudge waits for the guided tour to have been read *and* for `promptAfterInvoices` invoices to exist, then records that it asked — so it never competes with the first-run walkthrough and never nags.
+- The local copy is not wasted: the admin console reads it as a **feedback inbox**.
+
+### Admin console
+A passcode-gated desk at `admin.html` for the person issuing licences.
+
+- **Overview** — plan in force, invoices/customers/products on file, quota used this month, storage mode, pending sync queue
+- **Plan matrix** — every gated feature against every plan, read from the *same* `app.config.js` the gates read, so the table cannot disagree with the app
+- **Key generation** — mint a batch for a plan with a note ("Bahari Fisheries"), up to `maxKeysPerBatch`. **Every key in a batch is guaranteed distinct** and a later batch never re-mints an earlier one; each key is stamped with its own issue date so the checksum never collides.
+- **Verify** — paste any key and get a verdict without activating it
+- **Ledger** — every key issued, sorted, with status (available / activated, and whether it is active *on this device*)
+- **Feedback inbox** — the reviews left on this device, with rating, topic, words, device and how each was sent
+- **Passcode** stored as a hash with a `sip-admin-v1|` salt, changeable, with the default surfaced on-screen until it is changed
+
+> **What this console is not.** It is deliberately *not* a user-tracking dashboard. With no backend there is no way to see other people's devices, and pretending otherwise would be a lie in the UI. It manages **licences** (which are data you own and hand out) and shows **this device's** data. `js/admin.js` says so on the page, not just in a comment.
+>
+> The passcode is a **speed bump, not a security control** — it keeps a curious end user out of the key ledger, nothing more. It is documented as such in the source. Real key issuance belongs on a server.
 
 ### Financial engine
 - Exact **2-decimal decimal arithmetic** using integer-based rounding — floating-point errors are eliminated
@@ -103,6 +132,7 @@ invoice-generator/
 ├── products.html           # Product & inventory management
 ├── reports.html            # Business reports
 ├── settings.html           # Business profile, brand, plans, data tools
+├── admin.html              # Admin console (passcode-gated: keys, ledger, feedback inbox)
 ├── css/
 │   └── styles.css          # Complete design system (utilities, dark mode, mobile-first)
 ├── js/
@@ -116,6 +146,9 @@ invoice-generator/
 │   ├── db.js               # IndexedDB layer + legacy-database migration
 │   ├── shell.js            # Shared shell (theme, nav, PWA, identity, currency)
 │   ├── onboarding.js       # ★ Guided tour + built-in manual (first-run walkthrough)
+│   ├── feedback.js         # ★ Review prompt: stars, local store, WhatsApp/email/copy
+│   ├── adminKeys.js        # ★ Key ledger logic (DOM-free, so it is unit-testable)
+│   ├── admin.js            # ★ Admin console: passcode gate, key minting, inbox
 │   ├── app.js              # Dashboard logic
 │   ├── invoice.js          # Invoice module
 │   ├── customer.js         # Customer module
@@ -142,6 +175,7 @@ invoice-generator/
 │   ├── test-brand.js       # Theming engine, contrast, brand-boot parity
 │   ├── test-config.js      # Config shape, storage keys, white-label guard
 │   ├── test-license.js     # Plans, quota, licence keys, phone/message helpers
+│   ├── test-admin.js       # Key ledger + feedback helpers (no browser needed)
 │   ├── test-assets.js      # Icon decoding, alpha coverage, palette
 │   ├── test-markup.js      # Markup / CSS / SW / a11y contracts
 │   ├── test-e2e.js         # Browser end-to-end (CDP)
@@ -149,6 +183,7 @@ invoice-generator/
 │   ├── test-polish.js      # Interaction polish + reduced-motion (CDP)
 │   ├── test-responsive.js  # Mobile-first sweep across pages × widths (CDP)
 │   ├── test-onboarding.js  # Guided tour + manual, first-run through replay (CDP)
+│   ├── test-features.js    # Plan gates, feedback, inline customers, admin (CDP)
 │   ├── screenshots.js      # Brand showcase screenshots
 │   └── lib/cdp.js          # Shared DevTools Protocol client
 ├── manifest.json           # PWA manifest
@@ -466,7 +501,7 @@ await configure({ adapter: 'supabase', endpoint, apiKey });
 Plans, limits and gateway metadata all live in `js/app.config.js`; the behaviour lives in `js/licenseService.js`.
 
 - **Free** — 10 invoices/month, 25 customers, 25 products
-- **Pro** — unlimited invoices, brand customisation, no watermark
+- **Pro** — unlimited invoices, brand customisation, custom app name, digital signature & stamp, monthly report download, no watermark
 - **Enterprise** — multi-user, multi-branch, cloud sync, API access
 
 The quota is **derived**, not stored: `evaluateQuota()` counts invoice records in the current calendar month. A stored counter drifts the moment a save is retried, a backup is restored, or the device clock moves.
@@ -510,26 +545,28 @@ Verified by `scripts/test-responsive.js`, which sweeps **10 widths × 6 pages** 
 Everything runs on Node built-ins plus a headless Chrome — no test framework to install.
 
 ```bash
-npm test          # 740 static checks: engine, utils, theming, config, plans, icons, markup
-npm run test:e2e  # 560 browser checks: journeys, a11y, polish, responsive sweep, platform, charts, preview, onboarding
-npm run test:all  # both — 1300 checks
+npm test          # 997 static checks: engine, utils, theming, config, plans, licence, key ledger, icons, markup
+npm run test:e2e  # 706 browser checks: journeys, a11y, polish, responsive sweep, platform, charts, preview, onboarding, features
+npm run test:all  # both — 1703 checks
 ```
 
 | Command | What it covers |
 |---|---|
-| `npm test` | Financial math, XSS escaping, colour math, brand-boot parity across 242 brand configurations, WCAG AA across all presets, config shape, storage-key semantics, white-label guard, quota arithmetic, licence keys, phone normalisation, icon decoding, CSS/markup contracts, the mobile-first grid contract, the dark-theme token contract, service-worker precache integrity, accessible names |
+| `npm test` | Financial math, XSS escaping, colour math, brand-boot parity across 242 brand configurations, WCAG AA across all presets, config shape, storage-key semantics, white-label guard, quota arithmetic, licence keys, key-ledger generation (no duplicates), feedback composition, phone normalisation, icon decoding, CSS/markup contracts, the mobile-first grid contract, the dark-theme token contract, service-worker precache integrity, accessible names |
 | `npm run test:e2e` | Every page loads clean; brand apply/persist/reset; flash-free first paint; dark mode; customer & product CRUD; invoice creation with verified totals; the free-tier cap and upgrade modal; reports; PDF/CSV/QR export (asserts the `%PDF` magic bytes); **invoice branding — the business logo and name must reach the preview, the footer and the embedded PDF, and a non-PNG logo upload must be normalised**; **invoice layout regressions — line-item inputs must not clip, the logo must stack beneath the business name, the Bill To / Ship To panel must grow around its contents so the TIN never spills, and the uploaded signature and stamp must reach both the preview and the PDF**; WhatsApp link construction; backup/restore; currency switching; genuine offline mode |
-| `npm run test:a11y` | Radio-group semantics, roving tabindex, arrow-key navigation (including wrap-around), accessible names for every control, keyboard reachability with a custom palette |
+| `npm run test:a11y` | Radio-group semantics, roving tabindex, arrow-key navigation (including wrap-around), accessible names for every control, keyboard reachability with a custom palette. Its name model excludes `aria-hidden` subtrees, as the real accessible-name algorithm does — otherwise a decorative `Pro` tag counts as part of the name and a gated field is reported as "App Name Pro" |
 | `npm run test:polish` | Button shine sweep and hover lift, ripple creation + its stacking order, the loading-state contract, recessed switch, custom checkbox, tooltips, and that `prefers-reduced-motion` genuinely neutralises the motion |
 | `npm run test:responsive` | Sweeps 10 widths (320→1600px) × 6 pages, failing on page overflow, crushed grids, clipped text and chart-label collisions — then the dashboard chart ranges (7/30/90 days × 375/768/1024/1440px) for overflow, card overlap, label collisions and `data-density` — then asserts the chrome contract (bottom nav → hamburger drawer → docked sidebar) |
 | `npm run test:charts` | The donut and the bar chart. Geometry (the bar band, the gridline band and the y-axis band must be the *same* box — when they drift every bar is silently short by the x-axis label height); encoding (bar height == value / axis max, so a plausible-looking but non-proportional chart fails); the ledger (every bucket against an independently recomputed daily total, and the donut's per-status counts and amounts against the invoice records); the tallest bar's value label not being clipped by the scroll container; `role="img"` + a generated summary + a visually-hidden data table that matches what was drawn; the entrance animation (bars start collapsed, land at full scale, 60ms stagger) and that `prefers-reduced-motion` writes the final state with no animation armed; both empty states; and zero cross-origin requests, so a CDN chart library cannot creep back in |
 | `npm run test:platform` | Storage adapter contract (including that a failed cloud switch falls back to local), the free-tier gate and upgrade modal, licence activation/persistence/reset, payment-gateway rendering, the WhatsApp share path and its popup-blocked fallback, runtime white-label identity, and the service-worker offline cache |
 | `npm run test:config` | `app.config.js` shape, storage-key prefixing and legacy fallback, plan/gateway declarations, script load order, and the white-label guard |
 | `npm run test:license` | Month keys, quota evaluation (free/pro/unknown plans), licence-key round-trip and rejection, phone normalisation, message templating, `wa.me` URLs |
+| `npm run test:admin` | The key ledger and the feedback helpers, with no browser involved — which is the point: **a batch of 2, 5, 20 or 50 keys must contain no duplicates, and a second batch must not re-mint the first**. Also `hashPasscode`, `sortKeys`, `keyStatus`, `stampToISODate`, `normaliseRating`, `summariseFeedback`, the composed WhatsApp/email message, and the config blocks the console reads |
 | `npm run test:assets` | Decodes every generated PNG and asserts dimensions, alpha coverage, corner rounding, full-bleed maskable variants and palette, the maskable safe zone (the mark must stay inside the 80% circle), the five brand SVG sources, and the multi-resolution `favicon.ico` — this is the guard that caught every icon shipping fully transparent |
 | `npm run test:unit` / `test:brand` / `test:markup` | Individual suites (`test:markup` owns the mobile-first grid contract, the dark-theme token contract, the PWA head wiring on all 6 pages, the self-hosted-font/offline contract, the identity ramp, and the service-worker precache list) |
 | `npm run test:preview` | The preview panel's actions and the PDF's pagination. **Download PDF / Print / WhatsApp must work when the preview was opened from the list's eye icon** — they act on the invoice being shown, not on the editor form (which is untouched on that path, so re-collecting from it produced a nameless invoice and the click was a silent no-op); Print must render the real document; Edit must load *that* invoice into the form, while a preview opened **from** the editor must not throw unsaved edits away; and a normal invoice must stay on **one page** — a 5- and a 6-line invoice with a full letterhead, four payment lines, notes and logo/signature/stamp/QR artwork, while a 16-line invoice still paginates |
 | `npm run test:onboarding` | The guided tour and the manual. A fresh install must open the tour by itself (polling for it, because the dashboard's first-run seeding blocks the main thread for seconds); Next must cross to the page the step lives on and strip `?tour=` from the URL; Back, the progress dots and `←`/`→` must all navigate; `Esc` must close it and record the seen flag so a returning visit does **not** re-open it; the manual must list all nine steps and be able to launch the tour; and **every step's anchor must actually exist on the page it belongs to** — walked page by page, including reduced motion, a 390px phone viewport and dark mode |
+| `npm run test:features` | **The monetization and admin layer, driven end to end in a real browser.** Free-plan gates (app name, signature/stamp, monthly download) are locked *and* open the upgrade prompt when pressed, while the logo, the Business Name and the daily/weekly/yearly exports stay free; Pro unlocks all three and leaves nothing tagged. The feedback form's stars, keyboard access, local persistence, send stage and one-shot nudge. Inline customer creation: the **+ New** form writes to the customer database, and a plain invoice save auto-creates the customer and links the invoice — while re-saving does **not** duplicate them. And the admin console: passcode gate, overview, key generation (asserting every key is distinct and a second batch does not repeat the first), verification, activation, the ledger, the feedback inbox, and a passcode change that must invalidate the old one. **Two checks here exist because the obvious version passed for the wrong reason**: the daily CSV export must actually reach the disk before the monthly one is measured against it — with an empty ledger `exportCSV` returns early, so "blocked" and "allowed" looked identical — and a deliberately refused clipboard must **not** record the review as sent |
 | `npm run test:live` | **Post-deploy check against the real Pages URL.** Charts render and animate in production, the service worker is on the expected cache version and reaps old caches, every asset resolves from the `/smart-invoice-pro/` sub-path (no 404s), the theme toggle works, the app still loads with the network cut, and the console is clean. Needs the network and a finished Pages build, so it is deliberately not part of `test:e2e`. Pass a URL to point it somewhere else: `npm run test:live -- https://example.com/` |
 | `npm run shots` | Renders the brand showcase screenshots into `.workbuddy-ai/screenshots/` |
 | `npm run test:e2e -- --suite=<file>` | Run any single script from `scripts/` against a freshly booted server + browser |
@@ -568,6 +605,7 @@ Defaults included: **TZS, USD, EUR, KES, GBP**. Exchange rates are editable and 
 - No `eval()`, no inline JavaScript, no third-party network requests at runtime
 - IndexedDB used via transactional wrappers with full error handling
 - **No secrets in the client.** Gateway credentials, licence issuance and any real access control belong on a server. The client-side plan gate is a nudge, not a lock.
+- The **admin passcode is a speed bump, not authentication** — it keeps a curious end user out of the key ledger and nothing more. It is stored salted-and-hashed with `sip-admin-v1|`, but a hash in a static bundle is still a hash in a static bundle; the source says so explicitly rather than implying otherwise.
 
 ---
 
