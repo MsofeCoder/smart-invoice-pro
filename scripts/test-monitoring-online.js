@@ -8,6 +8,7 @@ const text = fs.readFileSync(metadataPath,'utf8');
 let metadata;
 try { metadata = JSON.parse(text.trim()); }
 catch { metadata = JSON.parse(text.split(/\r?\n/).find(line => line.startsWith('{') && line.includes('API_URL')) || '{}'); }
+metadata = metadata.env || metadata;
 const api = metadata.API_URL;
 const key = metadata.PUBLISHABLE_KEY || metadata.ANON_KEY;
 if (!api || !key || !['localhost','127.0.0.1'].includes(new URL(api).hostname)) throw new Error('Use only a disposable local Supabase backend');

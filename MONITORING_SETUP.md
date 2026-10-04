@@ -51,7 +51,7 @@ Local account separation prevents accidental mixing, not a person with access to
 
 ## Verification and pilot operations
 
-Local backend: start Supabase using the checked-in config (API 55431, Postgres 55432) with TOTP enabled. After changing Auth configuration, restart only this project's local services. Run `npm run test:monitoring:backend` and `npm run test:monitoring:online`; the latter needs local `supabase start -o json` output saved to `.ci-monitoring-backend.log`. Never run these fixtures against the hosted pilot. Database fixtures roll back or remove only their generated IDs.
+Local backend: start Supabase using the checked-in config (API 55431, Postgres 55432) with TOTP enabled. After changing Auth configuration, restart only this project's local services. Run `npm run test:monitoring:backend` and `npm run test:monitoring:online`; the latter needs local `supabase start --output-format json` output saved to `.ci-monitoring-backend.log`. Never run these fixtures against the hosted pilot. Database fixtures roll back or remove only their generated IDs.
 
 Before inviting real clients, verify actual Google callbacks, owner MFA, cross-business denial, offline invoicing/retry, consent withdrawal, separate deployment URLs, and export/import recovery. Begin with two or three businesses.
 

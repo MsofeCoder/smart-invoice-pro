@@ -34,7 +34,7 @@ jobs:
         with:
           version: 2.119.0
       - name: Start disposable test backend
-        run: supabase start -x realtime,storage-api,imgproxy,studio,postgres-meta,edge-runtime,logflare,vector,supavisor,mailpit -o json > .ci-monitoring-backend.log
+        run: supabase start -x realtime,storage-api,imgproxy,studio,postgres-meta,edge-runtime,logflare,vector,supavisor,mailpit --output-format json > .ci-monitoring-backend.log
       - run: npm run test:monitoring:backend && supabase db advisors --local --type security --fail-on warn
       - run: npm run test:monitoring:online
         env:

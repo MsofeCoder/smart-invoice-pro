@@ -100,7 +100,7 @@ jobs:
           chrome-version: stable
           install-dependencies: true
       - name: Start disposable database and authentication
-        run: supabase start -x realtime,storage-api,imgproxy,studio,postgres-meta,edge-runtime,logflare,vector,supavisor,mailpit -o json > .ci-monitoring-backend.log
+        run: supabase start -x realtime,storage-api,imgproxy,studio,postgres-meta,edge-runtime,logflare,vector,supavisor,mailpit --output-format json > .ci-monitoring-backend.log
       - name: Verify real tenant isolation and owner MFA
         run: npm run test:monitoring:backend
       - name: Check database security
@@ -109,6 +109,13 @@ jobs:
         run: npm run test:monitoring:online
         env:
           E2E_BROWSER: ${{ steps.chrome.outputs.chrome-path }}
+      - name: Save verified owner-screen previews
+        uses: actions/upload-artifact@v4
+        with:
+          name: owner-monitoring-previews
+          path: .workbuddy-ai/screenshots/owner-monitoring-*.png
+          retention-days: 3
+          if-no-files-found: error
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
