@@ -1,5 +1,13 @@
 # Final release review - 2 October 2026
 
+## Hosted verification - 4 October 2026
+
+GitHub Actions run [37181764327](https://github.com/MsofeCoder/smart-invoice-pro/actions/runs/37181764327) passed quality and deployed the application. All 1,041 static checks, ten browser suites, packaged-site smoke checks and the dependency audit passed on the Ubuntu 22.04 / Node 22 CI environment. Chrome's sandbox remains enabled.
+
+The deployed HTTPS site at https://msofecoder.github.io/smart-invoice-pro/ passed all 50 live smoke checks, including cache v18, stale-cache cleanup, asset paths, offline reload, reports, themes and PDF preview. Local evidence: `.ci-live.log`. Native sharing and hover tests now verify supported behavior and fallbacks rather than assuming Windows browser capabilities. The live network audit excludes embedded data/blob resources while rejecting actual network requests to different origins.
+
+The sections below preserve the original local release review; its earlier statement that remote CI and the final HTTPS origin had not been exercised is superseded by this hosted verification.
+
 Verdict: the confirmed release blockers are fixed. The application-only package is ready for deployment for a local, offline invoicing workflow. No known blocker remains in the tested workflows. Final verification of a hosted release must use the exact deployed HTTPS URL; this review does not claim that uncommitted local changes are already deployed.
 
 ## Fixes completed

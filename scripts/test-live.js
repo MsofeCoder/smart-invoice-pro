@@ -128,7 +128,12 @@ const charts = await evaluate(`(() => {
     barRole: b.querySelector('.chart-plot')?.getAttribute('role'),
     barTable: b.querySelectorAll('table.sr-only tbody tr').length,
     peakColour: (() => { const p = b.querySelector('.bar-fill.is-peak'); return p ? getComputedStyle(p).backgroundColor : null; })(),
-    crossOrigin: performance.getEntriesByType('resource').map((e) => e.name).filter((u) => !u.startsWith(location.origin)),
+    crossOrigin: performance.getEntriesByType('resource').map((e) => e.name).filter((u) => {
+      const resource = new URL(u, location.href);
+      // Embedded data/blob resources do not contact another host. Compare
+      // complete origins so a hostname prefix cannot conceal a remote request.
+      return ['http:', 'https:', 'ws:', 'wss:'].includes(resource.protocol) && resource.origin !== location.origin;
+    }),
   };
 })()`);
 r.check('donut renders arcs', charts.donutArcs > 0, charts.donutArcs);
