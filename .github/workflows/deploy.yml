@@ -34,7 +34,9 @@ concurrency:
 jobs:
   # Static and browser regressions must pass before deployment.
   quality:
-    runs-on: ubuntu-latest
+    # Pin the test image: Ubuntu 24's user-namespace policy can prevent
+    # Chrome for Testing from starting. Keep Chrome sandboxing enabled.
+    runs-on: ubuntu-22.04
     timeout-minutes: 25
     permissions:
       contents: read
