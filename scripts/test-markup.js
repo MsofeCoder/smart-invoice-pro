@@ -307,7 +307,7 @@ console.log('\n== Service worker precache ==');
   // `listed` holds bare paths with any leading `./` stripped, e.g. `js/brand.js`.
   const listed = new Set((shell.match(/'\.\/[^']+'/g) || []).map((s) => s.slice(3, -1)));
 
-  for (const page of PAGES) {
+  for (const page of PAGES.filter(p => p !== 'admin.html')) {
     assert(`sw precaches ${page}`, listed.has(page));
   }
   for (const js of ['js/brand.js', 'js/brand-boot.js', 'js/shell.js', 'js/export.js', 'js/db.js']) {
@@ -801,9 +801,9 @@ console.log('\n== Monetization gates, feedback & admin console ==');
   assert('feedback.js asks only once', /NUDGE_KEY|feedbackAsked/.test(feedbackSrc));
   assert('feedback.js can compose a WhatsApp message', /whatsappUrl/.test(feedbackSrc));
 
-  // 9h. The admin page is reachable from every page's sidebar.
-  for (const page of PAGES) {
-    assert(`${page} links to the admin console`, /href="admin\.html" data-nav="admin"/.test(read(page)));
+  // 9h. Operator navigation must never appear on a client page.
+  for (const page of PAGES.filter(p => p !== 'admin.html')) {
+    assert(`${page} has no admin navigation`, !/admin\.html|data-nav="admin"/.test(read(page)));
   }
 
   // 9i. Every element the admin module queries must exist on the admin page.
@@ -833,9 +833,10 @@ console.log('\n== Monetization gates, feedback & admin console ==');
   assert('admin.js mints keys through makeLicenseKey', /makeLicenseKey/.test(adminSrc));
   assert('admin.js verifies keys through inspectKey', /inspectKey/.test(adminSrc));
 
-  // 9k. Everything new ships offline.
-  for (const asset of ['./admin.html', './js/admin.js', './js/adminKeys.js', './js/feedback.js']) {
-    assert(`sw precaches ${asset}`, swSrc.includes(`'${asset}'`), asset);
+  // 9k. Client feedback works offline; operator assets are never precached.
+  assert('sw precaches client feedback', swSrc.includes("'./js/feedback.js'"));
+  for (const asset of ['./admin.html', './js/admin.js', './js/adminKeys.js']) {
+    assert(`sw excludes operator asset ${asset}`, !swSrc.includes(`'${asset}'`), asset);
   }
 
   // 9l. The CSS the new surfaces depend on.

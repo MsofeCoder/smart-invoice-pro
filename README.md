@@ -19,7 +19,9 @@ Run `npm run test:all` and `npm audit` before release. The browser run uses a te
 
 Build the application-only artifact with `npm run package:site` (`dist/site/`). Run `npm run test:staging` to verify that artifact from a subdirectory, including service-worker activation, old-cache cleanup, offline reload and all asset paths. CI publishes this package rather than the repository tree.
 
-After deployment, run `npm run test:live -- https://your-host.example/app/` against the exact HTTPS URL. Its expected service-worker version is derived from `sw.js`; current cache is v18. This checks the deployed release, including assets, cache updates, offline loading and console errors.
+After deployment, run `npm run test:live -- https://your-host.example/app/` against the exact HTTPS URL. Its expected service-worker version is derived from `sw.js`; current cache is v19. This checks the deployed release, including assets, cache updates, offline loading and console errors.
+
+Client pages have no Admin navigation. The published site and client package exclude `admin.html`, `js/admin.js` and `js/adminKeys.js`; the operator console remains available only from the local source server. The v19 service worker removes the previous cache when it activates.
 
 This release supports a local, offline invoicing workflow. Browser data belongs to its browser profile and site origin: keep exported backups, especially before changing devices or domains. Cloud sync, payment processing and enforceable server authentication/licensing require a separately implemented backend; they are not enabled by this static release.
 
@@ -563,7 +565,7 @@ Verified by `scripts/test-responsive.js`, which sweeps **10 widths × 6 pages** 
 Everything runs on Node built-ins plus a headless Chrome — no test framework to install.
 
 ```bash
-npm test          # 1041 static checks: engine, utils, theming, config, plans, licence, key ledger, icons, CSV escaping, markup
+npm test          # 1039 static checks: engine, utils, theming, config, plans, licence, key ledger, icons, CSV escaping, markup
 npm run test:e2e  # 706 browser checks: journeys, a11y, polish, responsive sweep, platform, charts, preview, onboarding, features
 npm run test:all  # both — 1780 checks
 ```

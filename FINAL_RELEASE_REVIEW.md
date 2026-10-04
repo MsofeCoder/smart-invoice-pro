@@ -54,3 +54,8 @@ Tests ran with Windows, Node v26.7.0, npm 11.19.0 and headless Chrome in disposa
 This package provides local/offline invoicing. Cloud sync and payment gateway adapters remain stubs; browser-side licensing and the admin passcode remain convenience controls. Those server-backed capabilities are not part of this delivery's readiness claim.
 
 This report records local release verification before publication. Hosted deployment status is tracked by the GitHub Actions workflow. No client browser-data reset was performed. Local evidence is in `.fix-clean-unit.log`, `.fix-e2e.log`, `.fix-release.log`, `.fix-staging.log`, `.fix-install.log` and `.diag-fixed-audit.json`.
+# Client release separation — 4 October 2026
+
+Removed Admin navigation from all six client pages. Client deployment and ZIP now exclude the operator page and its two JavaScript modules. The local source console remains available to the operator. Service worker v19 replaces the previous cache.
+
+Validation before publication: 1,039 static checks passed; packaged browser verification passed 59/59 checks, including absent Admin navigation, 404 responses for operator assets, cache replacement, offline loading and PDF generation. Production dependency audit reports zero known vulnerabilities. The CI quality gate runs the full browser suite before deployment.

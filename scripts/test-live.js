@@ -106,6 +106,22 @@ r.check('served from the expected base path', boot.url.startsWith(LIVE), boot.ur
 r.check('app booted with a title', !!boot.title, boot.title);
 r.check('service workers are available (HTTPS)', boot.swSupported, boot.swSupported);
 
+r.section('Client navigation');
+for (const page of ['index.html', 'invoice.html', 'customers.html', 'products.html', 'reports.html', 'settings.html']) {
+  const clientPage = await evaluate(`(async () => {
+    const response = await fetch(${JSON.stringify(page)}, {cache: 'no-store'});
+    const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+    return {status: response.status, admin: !!doc.querySelector('a[href="admin.html"], [data-nav="admin"]')};
+  })()`);
+  r.check(`${page} loads without Admin navigation`, clientPage.status === 200 && !clientPage.admin, JSON.stringify(clientPage));
+}
+for (const asset of ['admin.html', 'js/admin.js', 'js/adminKeys.js']) {
+  const status = await evaluate(`fetch(${JSON.stringify(asset)}, {cache: 'no-store'}).then(response => response.status)`);
+  r.eq(`operator asset ${asset} is not published`, status, 404);
+}
+// Expected 404 probes above are deliberate, not client runtime errors.
+resetLogs();
+
 /* ---------- 2. both charts render, and agree with themselves ---------- */
 r.section('Charts on the live site');
 const charts = await evaluate(`(() => {
