@@ -78,6 +78,9 @@ try {
   r.eq('explicit support feedback reaches backend once',(await db.query('select count(*)::int as count from public.client_feedback where business_id=$1',[business])).rows[0].count,1);
   await c.evaluate("document.querySelector('#accountStop').click()");
   r.check('withdrawal disables collection',await wait("(async()=>!(await(await import('./js/monitoring.js')).monitoringStatus()).connected)()"));
+  await wait("document.querySelector('#accountStop').disabled");
+  await c.evaluate("document.querySelector('#monitoringConsent').checked=true;document.querySelector('#accountConnect').click()");
+  r.check('sharing can resume in the same workspace without losing its controls',await wait("!document.querySelector('#accountStop').disabled && !document.querySelector('#accountRetry').disabled"));
   await c.evaluate("document.querySelector('#accountSignOut').click()");
   r.check('sign-out exits the connected business workspace',await wait("globalThis.AppConfig?.workspaceId()===''"));
 

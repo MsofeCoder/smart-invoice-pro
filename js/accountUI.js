@@ -56,14 +56,14 @@ export function initAccountUI() {
         <button type="button" class="btn btn-outline" id="accountStop" ${status.connected ? '' : 'disabled'}>Stop sharing status</button>
         <button type="button" class="btn btn-outline" id="accountSignOut">Sign out</button>
       </div>
-      <p class="hint mt-3">Last confirmed server contact: ${status.lastContact ? escapeHTML(new Date(status.lastContact).toLocaleString()) : 'None'}. ${status.pending ? 'An update is waiting to send.' : 'No status update is pending.'} Business records are local; cloud backup is not enabled.</p>
+      <p id="accountContact" class="hint mt-3">Last confirmed server contact: ${status.lastContact ? escapeHTML(new Date(status.lastContact).toLocaleString()) : 'None'}. ${status.pending ? 'An update is waiting to send.' : 'No status update is pending.'} Business records are local; cloud backup is not enabled.</p>
       <div class="field mt-3"><label for="accountFeedback">Message to support (optional)</label>
         <textarea class="input" id="accountFeedback" rows="3" maxlength="2000" placeholder="Describe the issue without customer or payment details."></textarea>
         <p class="hint">Only the message you enter here will be sent when you choose Send.</p>
         <button type="button" class="btn btn-outline mt-2" id="accountSendFeedback" ${status.connected ? '' : 'disabled'}>Send message to support</button>
       </div>`;
       const bind = (id, fn) => controls.querySelector(id).onclick = event => act(event.currentTarget, fn);
-      bind('#accountConnect', () => connectMonitoring(controls.querySelector('#accountBusiness').value, controls.querySelector('#monitoringConsent').checked));
+      bind('#accountConnect', async () => { await connectMonitoring(controls.querySelector('#accountBusiness').value, controls.querySelector('#monitoringConsent').checked); await refresh(); });
       bind('#accountExport', async () => downloadBlob(new Blob([JSON.stringify(await exportAllData(), null, 2)], {type: 'application/json'}), `invoice-workspace-backup-${new Date().toISOString().slice(0,10)}.json`));
       bind('#accountRetry', async () => { await retryMonitoring(); await refresh(); });
       bind('#accountStop', async () => { await disconnectMonitoring(); await refresh(); });
@@ -79,6 +79,8 @@ export function initAccountUI() {
   // Preserve typed feedback and consent controls during background heartbeats.
   window.addEventListener('monitoringchange', async () => {
     const status = await monitoringStatus();
+    const contact = card.querySelector('#accountContact');
+    if (contact) contact.textContent = `Last confirmed server contact: ${status.lastContact ? new Date(status.lastContact).toLocaleString() : 'None'}. ${status.pending ? 'An update is waiting to send.' : 'No status update is pending.'} Business records are local; cloud backup is not enabled.`;
     if (!status.connected) refresh();
   });
 }
