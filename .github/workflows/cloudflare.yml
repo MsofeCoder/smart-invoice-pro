@@ -1,0 +1,70 @@
+name: Publish monitored pilot to Cloudflare Free
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-pilot
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:cloud-sdk && git diff --exit-code -- libs/supabase.js libs/supabase-licenses.txt libs/SUPABASE-LICENSE
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        with:
+          chrome-version: stable
+          install-dependencies: true
+      - run: npm run test:all && npm run test:staging && npm audit --omit=dev
+        env:
+          E2E_BROWSER: ${{ steps.chrome.outputs.chrome-path }}
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.119.0
+      - name: Start disposable test backend
+        run: supabase start -x realtime,storage-api,imgproxy,studio,postgres-meta,edge-runtime,logflare,vector,supavisor,mailpit -o json > .ci-monitoring-backend.log
+      - run: npm run test:monitoring:backend && supabase db advisors --local --type security --fail-on warn
+      - run: npm run test:monitoring:online
+        env:
+          E2E_BROWSER: ${{ steps.chrome.outputs.chrome-path }}
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Configure public pilot settings and package both sites
+        run: npm run configure:cloud && npm run package:site
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+      - name: Publish client site
+        run: npx wrangler pages deploy dist/site --project-name "$CLIENT_PROJECT" --branch main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLIENT_PROJECT: ${{ vars.CLOUDFLARE_CLIENT_PROJECT }}
+      - name: Publish separate owner site
+        run: npx wrangler pages deploy dist/owner --project-name "$OWNER_PROJECT" --branch main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          OWNER_PROJECT: ${{ vars.CLOUDFLARE_OWNER_PROJECT }}

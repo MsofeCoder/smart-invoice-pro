@@ -7,9 +7,9 @@
  * deployment would strand existing users' invoices in an orphaned database, so
  * `migrateLegacyDatabases()` copies them across once, on first boot.
  */
-import { CONFIG } from './config.js';
+import { CONFIG, workspaceId } from './config.js';
 
-const DB_NAME = CONFIG.dbName || 'invoice-app';
+const DB_NAME = (CONFIG.dbName || 'invoice-app') + (workspaceId() ? `--business-${workspaceId()}` : '');
 const DB_VERSION = 1;
 
 /** Stamped into backups so a restore can be validated. */
@@ -42,6 +42,7 @@ let dbPromise = null;
  * from opening. Returns a short description of what happened, for logging.
  */
 async function migrateLegacyDatabases() {
+  if (workspaceId()) return 'business workspace; no automatic import';
   const legacy = (CONFIG.legacyDbNames || []).filter(Boolean);
   if (!legacy.length) return 'no legacy names configured';
   if (typeof indexedDB.databases !== 'function') return 'databases() unsupported';

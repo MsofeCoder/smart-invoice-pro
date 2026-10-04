@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Client monitoring — Owner dashboard</title>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../css/styles.css">
+  <link rel="stylesheet" href="owner.css">
+  <script src="../js/app.config.js"></script>
+  <script src="../js/brand-boot.js"></script>
+</head>
+<body>
+  <main class="owner-layout">
+    <header class="owner-header"><div><p class="owner-eyebrow">SMART INVOICE PRO</p><h1>Client monitoring</h1>
+      <p class="text-muted">Licenses, device contact and client support</p></div>
+      <button type="button" class="btn btn-outline hidden" id="ownerSignOut">Sign out</button></header>
+    <p id="ownerStatus" role="status" aria-live="polite">Checking access…</p>
+    <p id="ownerError" class="text-danger" role="alert"></p>
+    <section class="card mt-4" id="ownerGate" aria-labelledby="gateHeading">
+      <div class="card-header"><h2 id="gateHeading">Owner access</h2></div>
+      <div class="card-body"><p>Sign in with your authorized owner account. An authenticator code is required to view client information.</p>
+        <button type="button" class="btn btn-primary mt-3" id="ownerGoogle">Continue with Google</button>
+        <div id="ownerMfa" class="hidden mt-3">
+          <button type="button" class="btn btn-outline" id="ownerEnrollMfa">Set up authenticator</button>
+          <img id="ownerMfaQr" class="hidden owner-qr" alt="Scan this QR code with your authenticator">
+          <p id="ownerMfaSecret" class="mono"></p>
+          <form id="ownerMfaForm" class="mt-3"><div class="field"><label for="ownerCode">Authenticator code</label>
+            <input class="input" id="ownerCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></div>
+            <button class="btn btn-primary mt-2" type="submit">Verify code</button></form>
+        </div>
+      </div>
+    </section>
+    <section id="ownerContent" class="hidden">
+      <div class="owner-metrics mt-4" id="ownerMetrics"></div>
+      <section class="card mt-4" aria-labelledby="clientsHeading"><div class="card-header"><h2 id="clientsHeading">Client businesses</h2>
+        <button class="btn btn-outline btn-sm ml-auto" type="button" id="ownerRefresh">Refresh</button></div>
+        <div class="table-wrap"><table class="table"><thead><tr><th>Business</th><th>License</th><th>Version</th><th>Last contact</th><th>Reported state</th></tr></thead><tbody id="ownerClients"></tbody></table></div>
+      </section>
+      <section class="card mt-4" aria-labelledby="enrollHeading"><div class="card-header"><h2 id="enrollHeading">Invite a client business</h2></div>
+        <form id="ownerEnroll" class="card-body"><div class="owner-form-grid">
+          <div class="field"><label for="ownerBusinessName">Business name</label><input class="input" id="ownerBusinessName" autocomplete="organization" maxlength="120" required></div>
+          <div class="field"><label for="ownerClientEmail">Client's Google account email</label><input class="input" id="ownerClientEmail" type="email" autocomplete="email" maxlength="254" required></div></div>
+          <p class="hint mt-2">The invitation lasts seven days. Share the client app link manually; signing in with this verified email claims the invitation. No email is sent automatically.</p>
+          <button type="submit" class="btn btn-primary mt-3">Create business invitation</button>
+        </form>
+      </section>
+      <section class="card mt-4" aria-labelledby="feedbackHeading"><div class="card-header"><h2 id="feedbackHeading">Client messages</h2></div><div class="card-body" id="ownerFeedback"></div></section>
+      <p class="hint mt-4">Last contact reflects a confirmed request, not live presence. Clients keep working locally while offline. Business invoice contents are not collected.</p>
+    </section>
+  </main>
+  <script type="module" src="owner.js"></script>
+</body>
+</html>

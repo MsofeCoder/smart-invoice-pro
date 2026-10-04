@@ -20,7 +20,7 @@
  *
  * Bump CACHE_NAME on every deploy — it is what makes clients pick up new files.
  */
-const CACHE_NAME = 'smart-invoice-pro-v19';
+const CACHE_NAME = 'smart-invoice-pro-v20';
 
 /** Cache prefixes owned by this app, used to sweep up after a rename. */
 const OWNED_PREFIXES = ['smart-invoice-pro-', 'crown-invoice-pro-'];
@@ -44,6 +44,13 @@ const APP_SHELL = [
   './js/report.js',
   './js/settings.js',
   './js/shell.js',
+  './js/cloud.config.js',
+  './js/cloudClient.js',
+  './js/monitoring.js',
+  './js/monitoringModel.js',
+  './js/monitoringStore.js',
+  './js/accountUI.js',
+  './libs/supabase.js',
   './js/onboarding.js',
   './js/feedback.js',
   './js/db.js',

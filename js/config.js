@@ -27,6 +27,9 @@ export const CONFIG_LOADED = Boolean(raw && helpers);
 /** Frozen configuration object. Empty when the config did not load. */
 export const CONFIG = raw || {};
 
+/** Fixed for this page load; switching workspaces always reloads all tabs. */
+export const workspaceId = () => helpers?.workspaceId?.() || '';
+
 /* ---------------------------------------------------------------------------
    Storage helpers. Re-implemented locally when the config script is absent so
    modules never have to branch on CONFIG_LOADED just to read a theme.

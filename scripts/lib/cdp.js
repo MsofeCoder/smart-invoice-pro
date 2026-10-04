@@ -64,6 +64,12 @@ export async function connect() {
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   let seq = 0;
   const pending = new Map();
+  const handlers = new Map();
+  const on = (method, handler) => {
+    if (!handlers.has(method)) handlers.set(method,new Set());
+    handlers.get(method).add(handler);
+    return () => handlers.get(method).delete(handler);
+  };
 
   /** Console errors/exceptions and failed requests, reset on every navigation. */
   const state = { logs: [], netFails: [] };
@@ -107,6 +113,7 @@ export async function connect() {
     if (m.method === 'Network.loadingFailed') {
       state.netFails.push(`${m.params.errorText} ${m.params.url || ''}`.slice(0, 140));
     }
+    for (const handler of handlers.get(m.method) || []) handler(m.params);
   });
 
   await new Promise((resolve, reject) => {
@@ -143,6 +150,7 @@ export async function connect() {
 
   return {
     send,
+    on,
     evaluate,
     goto,
     shot,

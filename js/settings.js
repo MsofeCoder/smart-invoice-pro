@@ -8,6 +8,7 @@ import {
 } from './storageService.js';
 import { getCurrencies, saveCurrencies, getDefaultCurrencyCode, setDefaultCurrencyCode } from './currency.js';
 import { initShell, refreshBrand, getActiveBrand } from './shell.js';
+import { initAccountUI } from './accountUI.js';
 import {
   CONFIG, readStorage, writeStorage, removeStorage, appSlug, paymentGateways, allowWhiteLabel,
 } from './config.js';
@@ -806,6 +807,7 @@ function initSubscriptionUI() {
 
 async function init() {
   await initShell();
+  initAccountUI();
   // The plan decides which controls are usable, so it is loaded before any of
   // them is wired — a lock applied after binding would leave the first click
   // unguarded.

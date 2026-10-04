@@ -305,8 +305,14 @@
      ======================================================================== */
 
   /** Resolve a logical storage name to its prefixed key. */
+  var activeWorkspace = '';
+  try {
+    var savedWorkspace = localStorage.getItem(CONFIG.storagePrefix + 'workspace');
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(savedWorkspace || '')) activeWorkspace = savedWorkspace;
+  } catch (err) { /* local mode when browser storage is blocked */ }
+
   function storageKey(name) {
-    return CONFIG.storagePrefix + name;
+    return CONFIG.storagePrefix + (activeWorkspace ? 'business:' + activeWorkspace + ':' : '') + name;
   }
 
   /**
@@ -318,6 +324,7 @@
       if (typeof localStorage === 'undefined') return null;
       var current = localStorage.getItem(storageKey(name));
       if (current !== null) return current;
+      if (activeWorkspace) return null; // Never inherit another workspace's cached identity/brand.
       for (var i = 0; i < CONFIG.legacyStoragePrefixes.length; i++) {
         var legacy = localStorage.getItem(CONFIG.legacyStoragePrefixes[i] + name);
         if (legacy !== null) return legacy;
@@ -342,6 +349,7 @@
     try {
       if (typeof localStorage === 'undefined') return;
       localStorage.removeItem(storageKey(name));
+      if (activeWorkspace) return;
       CONFIG.legacyStoragePrefixes.forEach(function (prefix) {
         localStorage.removeItem(prefix + name);
       });
@@ -377,6 +385,7 @@
       return CONFIG;
     },
     storageKey: storageKey,
+    workspaceId: function () { return activeWorkspace; },
     readStorage: readStorage,
     writeStorage: writeStorage,
     removeStorage: removeStorage,

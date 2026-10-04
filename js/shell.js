@@ -18,6 +18,7 @@ import {
 } from './brand.js';
 import { initOnboarding } from './onboarding.js';
 import { initFeedback } from './feedback.js';
+import { startMonitoring } from './monitoring.js';
 
 /* ================= Brand + Theme =================
    brand-boot.js has already applied the cached palette before first paint.
@@ -425,4 +426,5 @@ export async function initShell() {
   // Exposed for the browser test suites and for support: which build is
   // running, which adapter is active, and how much is waiting to sync.
   window.__STORAGE__ = { adapter: activeAdapterId(), pending: await pendingCount() };
+  startMonitoring().catch(() => {});
 }

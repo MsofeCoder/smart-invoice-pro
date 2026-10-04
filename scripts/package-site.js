@@ -20,3 +20,20 @@ for (const file of operatorFiles) {
   if (fs.existsSync(path.join(target, file))) throw new Error(`Operator file leaked into client release: ${file}`);
 }
 console.log('Packaged client application only; operator console, development tooling and local data are excluded.');
+
+const ownerTarget = path.resolve(dist, 'owner');
+if (path.dirname(ownerTarget) !== dist) throw new Error('Invalid owner output path');
+fs.rmSync(ownerTarget, {recursive:true,force:true});
+fs.mkdirSync(ownerTarget);
+for (const entry of ['owner','css','assets','favicon.svg']) fs.cpSync(path.join(root,entry),path.join(ownerTarget,entry),{recursive:true});
+for (const entry of ['app.config.js','brand-boot.js','config.js','utils.js','cloud.config.js','cloudClient.js','monitoringModel.js']) {
+  fs.mkdirSync(path.join(ownerTarget,'js'),{recursive:true});
+  fs.copyFileSync(path.join(root,'js',entry),path.join(ownerTarget,'js',entry));
+}
+fs.mkdirSync(path.join(ownerTarget,'libs'));
+for (const entry of ['supabase.js','supabase-licenses.txt','SUPABASE-LICENSE']) fs.copyFileSync(path.join(root,'libs',entry),path.join(ownerTarget,'libs',entry));
+fs.writeFileSync(path.join(ownerTarget,'_redirects'), '/ /owner/index.html 302\n');
+console.log('Packaged the owner dashboard separately into dist/owner.');
+const headers = '/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: strict-origin-when-cross-origin\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n/js/cloud.config.js\n  Cache-Control: no-cache\n/sw.js\n  Cache-Control: no-cache\n';
+fs.writeFileSync(path.join(target,'_headers'),headers);
+fs.writeFileSync(path.join(ownerTarget,'_headers'),headers+'\n/owner/*\n  Cache-Control: no-store\n');

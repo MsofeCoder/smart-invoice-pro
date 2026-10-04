@@ -1,14 +1,19 @@
 {
   "name": "smart-invoice-pro",
   "version": "2.0.0",
-  "description": "White-label, offline-first PWA invoice and business management app for SMEs. Rebrandable via js/app.config.js — no build step, no backend.",
+  "description": "White-label offline invoice PWA with optional consent-based operational monitoring and a separate owner dashboard.",
   "type": "module",
   "scripts": {
     "icons": "node scripts/generate-icons.js",
     "package:site": "node scripts/package-site.js",
+    "build:cloud-sdk": "node scripts/build-cloud-sdk.js",
+    "configure:cloud": "node scripts/configure-cloud.js",
+    "test:monitoring": "node scripts/test-monitoring-model.js && node scripts/e2e.js --suite=test-monitoring-browser.js",
+    "test:monitoring:backend": "node scripts/test-monitoring-backend.js",
+    "test:monitoring:online": "node scripts/e2e.js --suite=test-monitoring-online.js",
     "test:staging": "npm run package:site && node scripts/e2e.js --suite=test-live.js --local",
     "serve": "node scripts/serve.js",
-    "test": "node scripts/test-core.js && node scripts/test-utils.js && node scripts/test-brand.js && node scripts/test-config.js && node scripts/test-license.js && node scripts/test-admin.js && node scripts/test-assets.js && node scripts/test-csv.js && node scripts/test-markup.js",
+    "test": "node scripts/test-core.js && node scripts/test-utils.js && node scripts/test-brand.js && node scripts/test-config.js && node scripts/test-license.js && node scripts/test-admin.js && node scripts/test-assets.js && node scripts/test-csv.js && node scripts/test-markup.js && node scripts/test-monitoring-model.js",
     "test:unit": "node scripts/test-core.js && node scripts/test-utils.js",
     "test:brand": "node scripts/test-brand.js",
     "test:config": "node scripts/test-config.js",
@@ -32,8 +37,14 @@
     "shots": "node scripts/e2e.js --shots"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.117.2",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "pg": "8.23.1",
+    "wrangler": "4.147.0"
   }
 }

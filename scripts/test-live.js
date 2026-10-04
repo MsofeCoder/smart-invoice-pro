@@ -115,7 +115,7 @@ for (const page of ['index.html', 'invoice.html', 'customers.html', 'products.ht
   })()`);
   r.check(`${page} loads without Admin navigation`, clientPage.status === 200 && !clientPage.admin, JSON.stringify(clientPage));
 }
-for (const asset of ['admin.html', 'js/admin.js', 'js/adminKeys.js']) {
+for (const asset of ['admin.html', 'js/admin.js', 'js/adminKeys.js', 'owner/index.html']) {
   const status = await evaluate(`fetch(${JSON.stringify(asset)}, {cache: 'no-store'}).then(response => response.status)`);
   r.eq(`operator asset ${asset} is not published`, status, 404);
 }

@@ -1,6 +1,6 @@
 # Smart Invoice Pro — White-Label Offline Invoicing PWA
 
-A **production-ready, 100% offline Progressive Web App** for professional invoicing and business management, built for **Tanzanian SMEs** (and usable worldwide). Create invoices for products and services — including agricultural products such as cashew nuts — that look as professional as Zoho, QuickBooks, Odoo, FreshBooks, Wave and Xero, without any backend, any build step, or any internet connection.
+An **offline-first Progressive Web App** for invoicing and business management, built for **Tanzanian SMEs** (and usable worldwide). Invoice creation, local records and PDF exports work offline after installation. Optional consent-based monitoring uses a separately configured backend and owner dashboard.
 
 It is a **white-label template**: no product name, logo, colour or tagline is baked into the source. Everything a business owner needs to make the app *theirs* lives in one config file plus a Settings panel — no rebuild, no designer, no code.
 
@@ -23,7 +23,13 @@ After deployment, run `npm run test:live -- https://your-host.example/app/` agai
 
 Client pages have no Admin navigation. The published site and client package exclude `admin.html`, `js/admin.js` and `js/adminKeys.js`; the operator console remains available only from the local source server. The v19 service worker removes the previous cache when it activates.
 
-This release supports a local, offline invoicing workflow. Browser data belongs to its browser profile and site origin: keep exported backups, especially before changing devices or domains. Cloud sync, payment processing and enforceable server authentication/licensing require a separately implemented backend; they are not enabled by this static release.
+This release supports a local, offline invoicing workflow. Browser data belongs to its browser profile and site origin: keep exported backups, especially before changing devices or domains. Optional operational monitoring is disabled by default. Business cloud sync, payment processing and signed server licensing are not enabled.
+
+## Optional client monitoring
+
+The separate `owner/` dashboard and Supabase monitoring schema support invited accounts, owner MFA, consent-based device status, offline status retries and explicit support messages. The client package contains no Admin link or owner dashboard. Financial records remain local and are isolated by business workspace on each trusted device.
+
+See [free resources and milestones](CLIENT_MONITORING_PLAN.md) and [pilot setup and release requirements](MONITORING_SETUP.md). Google OAuth configuration, owner bootstrap, separate Cloudflare deployments and hosted login/recovery verification are required before enabling accounts for real clients. The existing local operator console remains a development tool, distinct from the authenticated monitoring dashboard.
 
 ## ✨ Features
 
@@ -565,7 +571,7 @@ Verified by `scripts/test-responsive.js`, which sweeps **10 widths × 6 pages** 
 Everything runs on Node built-ins plus a headless Chrome — no test framework to install.
 
 ```bash
-npm test          # 1039 static checks: engine, utils, theming, config, plans, licence, key ledger, icons, CSV escaping, markup
+npm test          # 1066 static checks, including privacy, consent and business workspace isolation
 npm run test:e2e  # 706 browser checks: journeys, a11y, polish, responsive sweep, platform, charts, preview, onboarding, features
 npm run test:all  # both — 1780 checks
 ```
@@ -624,7 +630,7 @@ Defaults included: **TZS, USD, EUR, KES, GBP**. Exchange rates are editable and 
 
 - HTML **escaped on output** everywhere (XSS-safe)
 - All inputs sanitized (strip control chars, trim, max lengths)
-- No `eval()`, no inline JavaScript, no third-party network requests at runtime
+- No `eval()`. The default offline client makes no third-party runtime requests. Configured monitoring connects to its Supabase backend and Google identity provider after explicit sign-in; operational status sharing requires separate consent.
 - IndexedDB used via transactional wrappers with full error handling
 - **No secrets in the client.** Gateway credentials, licence issuance and any real access control belong on a server. The client-side plan gate is a nudge, not a lock.
 - The **admin passcode is a speed bump, not authentication** — it keeps a curious end user out of the key ledger and nothing more. It is stored salted-and-hashed with `sip-admin-v1|`, but a hash in a static bundle is still a hash in a static bundle; the source says so explicitly rather than implying otherwise.
@@ -645,7 +651,7 @@ The modular codebase is designed to grow without rewrites:
 
 HTML5 · CSS custom properties (design-token system) · Vanilla JavaScript (ES2023 modules) · IndexedDB · Service Workers · LocalStorage (theme + brand cache) · jsPDF · AutoTable · QRCode.js
 
-No frameworks. No backend. No build step. No internet needed.
+No frontend framework. Core invoicing remains local and offline-capable. Optional monitoring uses a pinned, self-hosted Supabase SDK and a separate backend; rebuild that SDK with `npm run build:cloud-sdk` when its dependency changes.
 
 **How theming works:** `brand.js` derives a full design-token palette (brand, brand-dark/darker/light/soft, contrast-safe ink, accent, and 10 sidebar tokens) from just a primary colour, an accent colour, a sidebar style and a radius. It uses HSL maths plus WCAG relative-luminance contrast correction, then writes the result as inline custom properties on `<html>` — which outranks both `:root` and `[data-theme="dark"]`, so the brand wins without `!important`. A tiny duplicated copy in `brand-boot.js` runs as a render-blocking classic script so the palette *and* the app name are in place before the first paint; `test-brand.js` asserts the two implementations produce byte-identical palettes for 242 brand configurations.
 
