@@ -87,7 +87,7 @@ $('#ownerRefresh').onclick = event => action(event.currentTarget, refresh);
 $('#ownerEnrollMfa').onclick = event => action(event.currentTarget, async () => {
   const factors = await client.auth.mfa.listFactors();
   if (factors.error) throw new Error('Authenticator details are unavailable. Please reconnect.');
-  for (const item of factors.data.totp.filter(item => item.status !== 'verified')) {
+  for (const item of factors.data.all.filter(item => item.factor_type === 'totp' && item.status !== 'verified')) {
     const result = await client.auth.mfa.unenroll({factorId:item.id});
     if (result.error) throw new Error('Previous authenticator setup could not be cleared. Try again.');
   }

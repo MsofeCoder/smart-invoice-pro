@@ -94,6 +94,10 @@ try {
   const enrolled = await wait("document.querySelector('#ownerMfaSecret').textContent.includes('Manual setup key:')");
   r.check('real authenticator enrollment returns setup details',enrolled,await c.evaluate("document.querySelector('#ownerError').textContent"));
   if(!enrolled) throw new Error(await c.evaluate("(async()=>{const sdk=await(await import('../js/cloudClient.js')).getCloudClient();const result=await sdk.auth.mfa.enroll({factorType:'totp',friendlyName:'Diagnostic'});return result.error?.message||'Unexpected setup response';})()"));
+  await c.goto('owner/index.html',1800);
+  await c.evaluate("document.querySelector('#ownerEnrollMfa').click()");
+  r.check('interrupted authenticator setup can restart after reload',await wait("document.querySelector('#ownerMfaSecret').textContent.includes('Manual setup key:')"));
+  r.eq('restart removes the obsolete unverified factor',await c.evaluate("(async()=>{const sdk=await(await import('../js/cloudClient.js')).getCloudClient();return (await sdk.auth.mfa.listFactors()).data.all.filter(item=>item.factor_type==='totp').length;})()"),1);
   const secret=await c.evaluate("document.querySelector('#ownerMfaSecret').textContent.replace('Manual setup key: ','')");
   await c.evaluate(`document.querySelector('#ownerCode').value=${JSON.stringify(totp(secret))};document.querySelector('#ownerMfaForm button').click()`);
   r.check('real TOTP verification grants owner dashboard access',await wait("!document.querySelector('#ownerContent').classList.contains('hidden')",100));
