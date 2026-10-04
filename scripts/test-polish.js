@@ -84,7 +84,8 @@ await sleep(700);
 const hovered = await evaluate(`getComputedStyle(document.querySelector('.btn-primary')).backgroundPosition`);
 r.check('shine sweeps to the far side on hover', /150%/.test(hovered), hovered);
 const lifted = await evaluate(`getComputedStyle(document.querySelector('.btn-primary')).transform`);
-r.check('button lifts on hover', lifted !== 'none', lifted);
+const noHover = await evaluate(`matchMedia('(hover: none)').matches`);
+r.check('button obeys the device hover policy', noHover ? lifted === 'none' : lifted !== 'none', `hover:none=${noHover}, transform=${lifted}`);
 
 /* ---------- Ripple ---------- */
 r.section('Ripple');

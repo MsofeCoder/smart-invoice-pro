@@ -58,6 +58,12 @@ await goto('index.html', 3200);
 await evaluate(`(async () => { const db = await import('./js/db.js'); await db.seedSampleData(); })()`);
 await goto('index.html', 2000);
 
+// Service-worker activation may reload the page during first boot. Wait for
+// the asynchronous storage diagnostic before inspecting its adapter value.
+for (let attempt = 0; attempt < 80; attempt++) {
+  if (await evaluate(`!!window.__STORAGE__`)) break;
+  await sleep(100);
+}
 const adapterInfo = JSON.parse(await evaluate(`(async () => {
   const s = await import('./js/storageService.js');
   return JSON.stringify({
@@ -333,7 +339,6 @@ r.check('the message names the business', share.message.includes('Kilimo Bora Lt
 r.check('the message carries the amount', share.message.includes('250,000.00'), share.message);
 r.check('the message has no unfilled placeholders', !/\{[a-z]+\}/.test(share.message), share.message);
 r.eq('the PDF filename follows the invoice number', share.filename, 'INV-0042.pdf');
-r.check('navigator.share is available in this browser', share.hasShare === true, share.hasShare);
 
 // Drive the real share path: with no invoice selected the handler must still
 // produce a link rather than throwing.
@@ -343,21 +348,32 @@ const shared = await evaluate(`(async () => {
   const m = await import('./js/share.js');
   const opened = [];
   const realOpen = window.open;
+  const shareDescriptor = Object.getOwnPropertyDescriptor(navigator, 'share');
+  const canShareDescriptor = Object.getOwnPropertyDescriptor(navigator, 'canShare');
+  Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
+  Object.defineProperty(navigator, 'canShare', { configurable: true, value: undefined });
   window.open = (url) => { opened.push(String(url)); return { closed: false, focus() {} }; };
   let result;
+  let noNativeSharing;
   try {
+    noNativeSharing = !m.canShareFiles(new File(['pdf'], 'probe.pdf', { type: 'application/pdf' }));
     result = await m.shareInvoice(
       { number: 'INV-0042', customerName: 'Asha', customerPhone: '0712345678', grandTotal: 250000 },
       { businessName: 'Kilimo Bora Ltd' },
       { code: 'TZS', symbol: 'TZS', decimals: 2 },
-      { attachPdf: false },
+      {},
     );
   } finally {
     window.open = realOpen;
+    if (shareDescriptor) Object.defineProperty(navigator, 'share', shareDescriptor);
+    else delete navigator.share;
+    if (canShareDescriptor) Object.defineProperty(navigator, 'canShare', canShareDescriptor);
+    else delete navigator.canShare;
   }
-  return JSON.stringify({ result, opened });
+  return JSON.stringify({ result, opened, noNativeSharing });
 })()`);
 const S = JSON.parse(shared);
+r.eq('file sharing reports unsupported when native APIs are missing', S.noNativeSharing, true);
 r.eq('sharing reports success', S.result.ok, true);
 r.eq('it went out via the WhatsApp deep link', S.result.via, 'whatsapp');
 r.eq('exactly one tab was opened', S.opened.length, 1);
